@@ -58,7 +58,7 @@ class Objective:
         prompt_context = f"The current objective is: {self.objective}\n"
         if self.parent:
             prompt_context += f"This is the current objective because it will help complete the ultimate objective, which is: {OBJECTIVE}\n"
-        prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the list."
+        prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the list. Additionally, try to summarize each item on the list to one sentence."
         response = ooba_call(prompt)
         self.tasks = strip_numbered_list(response.split("\n") if "\n" in response else [response])
         if len(self.tasks) == 0:
@@ -92,11 +92,11 @@ class Objective:
                 self.done = all([task.done for task in self.tasks])
 
     def to_string(self, indent):
-        idt_string = "---"*indent
+        idt_string = "-----"*indent
         output = f"{idt_string}Objective: {self.objective}\n"
         for task in self.tasks:
             if isinstance(task, str):
-                output += f"---{idt_string}{task}\n"
+                output += f"-----{idt_string}{task}\n"
             else:
                 output += task.to_string(indent+1)
         return output
@@ -105,8 +105,8 @@ def ui():
     global DFS, RECURSION_LEVEL, MAX_TASKS, OBJECTIVE
     with gr.Column():
         with gr.Column():
-            output = gr.Textbox(label="Output", elem_classes="textbox", lines=20, max_lines=100, interactive=False)
             user_input = gr.Textbox(label="Goal for AgentOoba")
+            output = gr.Textbox(label="Output", elem_classes="textbox", lines=30, max_lines=30 interactive=False)
             max_tasks_slider = gr.Slider(
                 label="Max tasks in a list",
                 minimum=2,
