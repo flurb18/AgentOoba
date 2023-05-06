@@ -1,5 +1,4 @@
 import os
-import requests
 import gradio as gr
 import modules
 from modules import chat, shared
