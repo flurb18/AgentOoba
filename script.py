@@ -134,9 +134,9 @@ def ui():
             
             with gr.Row():
                 submit_button = gr.Button("Execute", variant="primary")
-                stop_button = gr.Button("Cancel")
+                cancel_button = gr.Button("Cancel")
 
-            submit_button.click(
+            submit_event = submit_button.click(
                 modules.ui.gather_interface_values,
                 inputs = [shared.gradio[k] for k in shared.input_elements],
                 outputs = shared.gradio['interface_state']
@@ -145,10 +145,12 @@ def ui():
             ).then(
                     mainloop, inputs=user_input, outputs=output
             )
+
+            cancel_event = cancel_button.click(lambda x:x, None, None, cancels=[submit_event])
     
 def mainloop(ostr):
+    yield "Thinking...\n"
     o = Objective(ostr)
     while (not o.done):
-        yield "Thinking...\n"
         o.process_current_task()
-        yield f"MASTER PLAN:\n{o.to_string(0)}"
+        yield f"MASTER PLAN:\n{o.to_string(0)}\nThinking..."
