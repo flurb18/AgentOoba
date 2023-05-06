@@ -45,11 +45,8 @@ def strip_numbered_list(nl):
     result_list = list(set(result_list))
     return result_list
 
-CompletedTasks = []
-
 class Objective:
     def __init__(self, objective, recursion_level=RECURSION_LEVEL, parent=None):
-        global CompletedTasks
         self.objective = objective
         self.parent = parent
         self.recursion_level = recursion_level
@@ -59,7 +56,6 @@ class Objective:
         prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the new list."
         response = ooba_call(prompt)
         self.tasks = strip_numbered_list(response.split("\n") if "\n" in response else [response])
-        CompletedTasks += self.tasks
         if len(self.tasks) == 0:
             print("Empty response from model")
             self.done = True
