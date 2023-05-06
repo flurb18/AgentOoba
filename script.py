@@ -97,12 +97,12 @@ class Objective:
                     output += task.to_string(indent+1)
             return output
         else:
-            output = f"OBJECTIVE: {self.objective}<br><ul>"
+            output = f'OBJECTIVE: {self.objective}<br><ul style="font-size:1rem">'
             for task in self.tasks:
                 if isinstance(task, str):
-                    output += f"<li>{task}</li>"
+                    output += f'<li style="font-size:1rem">{task}</li>'
                 else:
-                    output += f"<li>{task.to_string(0)}</li>"
+                    output += f'<li style="font-size:1rem">{task.to_string(0)}</li>'
             output += "</ul>"
             return output
 
@@ -147,7 +147,7 @@ def ui():
             ).then(
                     submit, inputs=[dfs_toggle, recursion_level_slider, max_tasks_slider]
             ).then(
-                    mainloop, inputs=user_input, outputs=output, scroll_to_output=True
+                    mainloop, inputs=user_input, outputs=output
             )
 
             submit_event_2 = user_input.submit(
@@ -157,19 +157,18 @@ def ui():
             ).then(
                     submit, inputs=[dfs_toggle, recursion_level_slider, max_tasks_slider]
             ).then(
-                    mainloop, inputs=user_input, outputs=output, scroll_to_output=True
+                    mainloop, inputs=user_input, outputs=output
             )
 
             def doNothing():
                 pass
 
             cancel_event = cancel_button.click(doNothing, None, None, cancels=[submit_event, submit_event_2])
-            update_event = output.change(doNothing, None, None, scroll_to_output=True)
-    
+            
 def mainloop(ostr):
-    yield "Thinking...<br>"
+    yield "<br>Thinking...<br>"
     o = Objective(ostr)
     while (not o.done):
         o.process_current_task()
-        yield f"MASTER PLAN:<br>{o.to_string(0)}<br>Thinking..."
-    yield f"MASTER PLAN:<br>{o.to_string(0)}<br>Done!"
+        yield f"<br>MASTER PLAN:<br>{o.to_string(0)}<br>Thinking..."
+    yield f"<br>MASTER PLAN:<br>{o.to_string(0)}<br>Done!"
