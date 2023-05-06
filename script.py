@@ -106,7 +106,7 @@ def ui():
     with gr.Column():
         with gr.Column():
             user_input = gr.Textbox(label="Goal for AgentOoba")
-            output = gr.Textbox(label="Output", elem_classes="textbox", lines=30, max_lines=30 interactive=False)
+            output = gr.Textbox(label="Output", elem_classes="textbox", lines=30, max_lines=30, interactive=False)
             max_tasks_slider = gr.Slider(
                 label="Max tasks in a list",
                 minimum=2,
