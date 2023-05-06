@@ -9,6 +9,7 @@ CTX_MAX = 16384
 DFS=False
 RECURSION_LEVEL=2
 MAX_TASKS=5
+RAW=False
 
 def fix_prompt(prompt: str) -> str:
     return "\n".join([line.strip() for line in (prompt.split("\n") if "\n" in prompt else [prompt])])[:CTX_MAX] + "\nResponse:\n"
@@ -56,9 +57,6 @@ class Objective:
         if self.parent:
             prompt_context += f"This is the current objective because it will help complete another objective, which is: {self.parent.objective}\n\n"
         prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the new list."
-        if CompletedTasks:
-            completed_tasks_string = "\n".join(CompletedTasks)
-            prompt += "\nThese tasks are already completed, do not include them in the list: {completed_tasks_string}\n"
         response = ooba_call(prompt)
         self.tasks = strip_numbered_list(response.split("\n") if "\n" in response else [response])
         CompletedTasks += self.tasks
@@ -93,21 +91,31 @@ class Objective:
                 self.done = all([task.done for task in self.tasks])
 
     def to_string(self, indent):
-        idt_string = "-----"*indent
-        output = f"{idt_string[:-1]}>OBJECTIVE: {self.objective}\n"
-        for task in self.tasks:
-            if isinstance(task, str):
-                output += f"-----{idt_string}{task}\n"
-            else:
-                output += task.to_string(indent+1)
-        return output
+        if RAW:
+            idt_string = "-----"*indent
+            output = f"{idt_string[:-1]}>OBJECTIVE: {self.objective}<br>"
+            for task in self.tasks:
+                if isinstance(task, str):
+                    output += f"-----{idt_string}{task}<br>"
+                else:
+                    output += task.to_string(indent+1)
+            return output
+        else:
+            output = f"OBJECTIVE: {self.objective}<br><ul>"
+            for task in self.tasks:
+                if isinstance(task, str):
+                    output += f"<li>{task}</li>"
+                else:
+                    output += f"<li>{task.to_string}</li>"
+            output += "</ul>"
+            return output
 
 def ui():
     global DFS, RECURSION_LEVEL, MAX_TASKS
     with gr.Column():
         with gr.Column():
             user_input = gr.Textbox(label="Goal for AgentOoba")
-            output = gr.Textbox(label="Output", elem_classes="textbox", lines=30, max_lines=30, interactive=False)
+            output = gr.HTML(label="Output", value="")
             max_tasks_slider = gr.Slider(
                 label="Max tasks in a list",
                 minimum=2,
@@ -146,16 +154,26 @@ def ui():
                     mainloop, inputs=user_input, outputs=output, scroll_to_output=True
             )
 
+            submit_event_2 = user_input.submit(
+                modules.ui.gather_interface_values,
+                inputs = [shared.gradio[k] for k in shared.input_elements],
+                outputs = shared.gradio['interface_state']
+            ).then(
+                    submit, inputs=[dfs_toggle, recursion_level_slider, max_tasks_slider]
+            ).then(
+                    mainloop, inputs=user_input, outputs=output, scroll_to_output=True
+            )
+
             def doNothing():
                 pass
 
-            cancel_event = cancel_button.click(doNothing, None, None, cancels=[submit_event])
+            cancel_event = cancel_button.click(doNothing, None, None, cancels=[submit_event, submit_event_2])
             update_event = output.change(doNothing, None, None, scroll_to_output=True)
     
 def mainloop(ostr):
-    yield "Thinking...\n"
+    yield "Thinking...<br>"
     o = Objective(ostr)
     while (not o.done):
         o.process_current_task()
-        yield f"MASTER PLAN:\n{o.to_string(0)}\nThinking..."
-    yield f"MASTER PLAN:\n{o.to_string(0)}\nDone!"
+        yield f"MASTER PLAN:<br>{o.to_string(0)}<br>Thinking..."
+    yield f"MASTER PLAN:<br>{o.to_string(0)}<br>Done!"
