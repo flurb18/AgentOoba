@@ -58,7 +58,7 @@ class Objective:
         prompt_context = f"The current objective is: {self.objective}\n"
         if self.parent:
             prompt_context += f"This is the current objective because it will help complete the ultimate objective, which is: {OBJECTIVE}\n"
-        prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the list. Additionally, try to summarize each item on the list to one sentence."
+        prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the list. Additionally, for any item on the list that is longer than one sentence, summarize that item in one sentence and replace the item with its summary."
         response = ooba_call(prompt)
         self.tasks = strip_numbered_list(response.split("\n") if "\n" in response else [response])
         if len(self.tasks) == 0:
