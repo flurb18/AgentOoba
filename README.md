@@ -1,6 +1,8 @@
 # AgentOoba
 An autonomous AI agent extension for Oobabooga's web ui
 
+[Screenshot](https://imgur.com/a/uapv6jd), [Sample Output](https://pastebin.com/JDgGaCCu)
+
 Prerequisites:
 Install https://github.com/oobabooga/text-generation-webui
 
