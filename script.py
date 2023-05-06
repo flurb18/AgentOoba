@@ -142,7 +142,7 @@ def ui():
             ).then(
                     submit, inputs=[dfs_toggle, recursion_level_slider, max_tasks_slider]
             ).then(
-                    mainloop, inputs=user_input, outputs=output
+                    mainloop, inputs=user_input, outputs=output, scroll_to_output=True
             )
 
             def doNothing():
