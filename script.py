@@ -44,22 +44,24 @@ def strip_numbered_list(nl):
     result_list = list(set(result_list))
     return result_list
 
-def check_relevance(task, objective):
-    prompt = f"We have an objective and a task. Determine if the task is relevant to completing the objective. If it is, respond with the word 'true'. Otherwise, respond with the word 'false'. Do not provide any reasoning or clarification. The task is: {task}\nThe objective is: {objective}"
-    response = ooba_call(prompt)
-    return "true" in response.lower()
+CompletedTasks = []
 
 class Objective:
     def __init__(self, objective, recursion_level=RECURSION_LEVEL, parent=None):
+        global CompletedTasks
         self.objective = objective
         self.parent = parent
         self.recursion_level = recursion_level
-        prompt_context = f"The current objective is: {self.objective}\n"
+        prompt_context = f"The current objective is: {self.objective}\n\n"
         if self.parent:
-            prompt_context += f"This is the current objective because it will help complete another objective, which is: {self.parent.objective}\n"
-        prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the list."
+            prompt_context += f"This is the current objective because it will help complete another objective, which is: {self.parent.objective}\n\n"
+        prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the new list."
+        if CompletedTasks:
+            completed_tasks_string = "\n".join(CompletedTasks)
+            prompt += "\nThese tasks are already completed, do not include them in the list: {completed_tasks_string}\n"
         response = ooba_call(prompt)
         self.tasks = strip_numbered_list(response.split("\n") if "\n" in response else [response])
+        CompletedTasks += self.tasks
         if len(self.tasks) == 0:
             print("Empty response from model")
             self.done = True
@@ -92,7 +94,7 @@ class Objective:
 
     def to_string(self, indent):
         idt_string = "-----"*indent
-        output = f"{idt_string}Objective: {self.objective}\n"
+        output = f"{idt_string[:-1]}>OBJECTIVE: {self.objective}\n"
         for task in self.tasks:
             if isinstance(task, str):
                 output += f"-----{idt_string}{task}\n"
@@ -148,6 +150,7 @@ def ui():
                 pass
 
             cancel_event = cancel_button.click(doNothing, None, None, cancels=[submit_event])
+            update_event = output.change(doNothing, None, None, scroll_to_output=True)
     
 def mainloop(ostr):
     yield "Thinking...\n"
