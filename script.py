@@ -106,7 +106,7 @@ def ui():
     with gr.Accordion("AgentOoba", open=True):
         with gr.Column():
             with gr.Column():
-                output = gr.Textbox(label="Output", elem_classes="textbox", lines=27, live=True, disabled=True)
+                output = gr.Textbox(label="Output", elem_classes="textbox", lines=27, interactive=False)
                 user_input = gr.Textbox(label="Goal for AgentOoba")
                 max_tasks_slider = gr.Slider(
                     label="Max tasks in a list",
@@ -127,24 +127,27 @@ def ui():
                     )
                     dfs_toggle = gr.Checkbox(label="Depth-First Search", value=DFS)
 
-            def submit():
-                DFS = dfs_toggle.value
-                RECURSION_LEVEL = recursion_level_slider.value
-                MAX_TASKS = max_tasks_slider.value
-                OBJECTIVE = user_input.value
-                mainloop(Objective(user_input.value), out=output)
+            def submit(dfs,recursion_level,max_tasks):
+                DFS = dfs
+                RECURSION_LEVEL = recursion_level
+                MAX_TASKS = max_tasks
             
             with gr.Row():
                 submit_button = gr.Button("Execute", variant="primary")
                 stop_button = gr.Button("Cancel")
-            submit_button.click(submit)
+
+            submit_button.click(
+                ui.gather_interface_values,
+                inputs = [shared.gradio[k] for k in shared.input_elements],
+                outputs = shared.gradio['interface_state']
+            ).then(
+                    submit, inputs=[dfs_toggle, recursion_level_slider, max_tasks_slider] 
+                    mainloop, inputs=user_input, outputs=output
+            )
     
-def mainloop(o, out=None):
+def mainloop(ostr):
+    o = Objective(ostr)
     out.value = "Thinking..."
     while (not o.done):
         o.process_current_task()
-        outstring = f"MASTER PLAN:\n{o.to_string(0)}"
-        if out:
-            out.value = outstring
-        else:
-            print(outstring)
+        yield f"MASTER PLAN:\n{o.to_string(0)}"
