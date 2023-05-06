@@ -1,8 +1,8 @@
 import os
 import requests
 import gradio as gr
-
-from modules import chat, shared, ui
+import modules
+from modules import chat, shared
 from modules.text_generation import generate_reply
 
 CTX_MAX = 16384
@@ -10,8 +10,6 @@ DFS=False
 RECURSION_LEVEL=2
 MAX_TASKS=5
 OBJECTIVE="Eat a tasty snack."
-
-shared.gradio['agent-state'] = gr.State()
 
 def fix_prompt(prompt: str) -> str:
     return "\n".join([line.strip() for line in (prompt.split("\n") if "\n" in prompt else [prompt])])[:CTX_MAX] + "\nResponse:\n"
@@ -139,7 +137,7 @@ def ui():
                 stop_button = gr.Button("Cancel")
 
             submit_button.click(
-                ui.gather_interface_values,
+                modules.ui.gather_interface_values,
                 inputs = [shared.gradio[k] for k in shared.input_elements],
                 outputs = shared.gradio['interface_state']
             ).then(
@@ -150,7 +148,7 @@ def ui():
     
 def mainloop(ostr):
     o = Objective(ostr)
-    out.value = "Thinking..."
     while (not o.done):
+        yield "Thinking...\n"
         o.process_current_task()
         yield f"MASTER PLAN:\n{o.to_string(0)}"
