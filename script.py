@@ -102,7 +102,7 @@ class Objective:
                 if isinstance(task, str):
                     output += f"<li>{task}</li>"
                 else:
-                    output += f"<li>{task.to_string}</li>"
+                    output += f"<li>{task.to_string(0)}</li>"
             output += "</ul>"
             return output
 
