@@ -9,6 +9,7 @@ CTX_MAX = 16384
 DFS=False
 RECURSION_LEVEL=2
 MAX_TASKS=5
+OBJECTIVE="Eat a tasty snack."
 
 def fix_prompt(prompt: str) -> str:
     return "\n".join([line.strip() for line in (prompt.split("\n") if "\n" in prompt else [prompt])])[:CTX_MAX] + "\nResponse:\n"
@@ -101,29 +102,45 @@ class Objective:
         return output
 
 def ui():
-    global DFS, RECURSION_LEVEL, MAX_TASKS
+    global DFS, RECURSION_LEVEL, MAX_TASKS, OBJECTIVE
     with gr.Accordion("AgentOoba", open=True):
         with gr.Column():
             with gr.Column():
-                output = gr.Textbox(label="Output", elem_classes="textbox", lines=27)
+                output = gr.Textbox(label="Output", elem_classes="textbox", lines=27, live=True, disabled=True)
                 user_input = gr.Textbox(label="Goal for AgentOoba")
-                max_tasks_slider = gr.Slider(label="Max tasks in a list", minimum=2,maximum=15,step=1,value=MAX_TASKS)
+                max_tasks_slider = gr.Slider(
+                    label="Max tasks in a list",
+                    minimum=2,
+                    maximum=15,
+                    step=1,
+                    value=MAX_TASKS,
+                    interactive=True
+                )
                 with gr.Row():
-                    recursion_level_slider = gr.Slider(label="Recursion Depth", minimum=1,maximum=7,value=RECURSION_LEVEL)
+                    recursion_level_slider = gr.Slider(
+                        label="Recursion Depth",
+                        minimum=1,
+                        maximum=7,
+                        step=1,
+                        value=RECURSION_LEVEL,
+                        interactive=True
+                    )
                     dfs_toggle = gr.Checkbox(label="Depth-First Search", value=DFS)
 
             def submit():
                 DFS = dfs_toggle.value
                 RECURSION_LEVEL = recursion_level_slider.value
                 MAX_TASKS = max_tasks_slider.value
+                OBJECTIVE = user_input.value
                 mainloop(Objective(user_input.value), out=output)
             
             with gr.Row():
                 submit_button = gr.Button("Execute", variant="primary")
-
+                stop_button = gr.Button("Cancel")
             submit_button.click(submit)
     
 def mainloop(o, out=None):
+    out.value = "Thinking..."
     while (not o.done):
         o.process_current_task()
         outstring = f"MASTER PLAN:\n{o.to_string(0)}"
