@@ -119,8 +119,9 @@ def ui():
                 mainloop(Objective(user_input.value), out=output)
             
             with gr.Row():
-                submit_button = gr.Button("Execute", variant="primary", onclick=submit)
-            
+                submit_button = gr.Button("Execute", variant="primary")
+
+            submit_button.click(submit)
     
 def mainloop(o, out=None):
     while (not o.done):
