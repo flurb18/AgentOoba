@@ -92,40 +92,39 @@ class Objective:
                 self.done = all([task.done for task in self.tasks])
 
     def to_string(self, indent):
-        idt_string = "   "*indent
+        idt_string = "---"*indent
         output = f"{idt_string}Objective: {self.objective}\n"
         for task in self.tasks:
             if isinstance(task, str):
-                output += f"   {idt_string}{task}\n"
+                output += f"---{idt_string}{task}\n"
             else:
                 output += task.to_string(indent+1)
         return output
 
 def ui():
     global DFS, RECURSION_LEVEL, MAX_TASKS, OBJECTIVE
-    with gr.Accordion("AgentOoba", open=True):
+    with gr.Column():
         with gr.Column():
-            with gr.Column():
-                output = gr.Textbox(label="Output", elem_classes="textbox", lines=27, interactive=False)
-                user_input = gr.Textbox(label="Goal for AgentOoba")
-                max_tasks_slider = gr.Slider(
-                    label="Max tasks in a list",
-                    minimum=2,
-                    maximum=15,
+            output = gr.Textbox(label="Output", elem_classes="textbox", lines=20, max_lines=100, interactive=False)
+            user_input = gr.Textbox(label="Goal for AgentOoba")
+            max_tasks_slider = gr.Slider(
+                label="Max tasks in a list",
+                minimum=2,
+                maximum=15,
+                step=1,
+                value=MAX_TASKS,
+                interactive=True
+            )
+            with gr.Row():
+                recursion_level_slider = gr.Slider(
+                    label="Recursion Depth",
+                    minimum=1,
+                    maximum=7,
                     step=1,
-                    value=MAX_TASKS,
+                    value=RECURSION_LEVEL,
                     interactive=True
                 )
-                with gr.Row():
-                    recursion_level_slider = gr.Slider(
-                        label="Recursion Depth",
-                        minimum=1,
-                        maximum=7,
-                        step=1,
-                        value=RECURSION_LEVEL,
-                        interactive=True
-                    )
-                    dfs_toggle = gr.Checkbox(label="Depth-First Search", value=DFS)
+                dfs_toggle = gr.Checkbox(label="Depth-First Search", value=DFS)
 
             def submit(dfs,recursion_level,max_tasks):
                 DFS = dfs
@@ -146,7 +145,10 @@ def ui():
                     mainloop, inputs=user_input, outputs=output
             )
 
-            cancel_event = cancel_button.click(lambda x:x, None, None, cancels=[submit_event])
+            def doNothing():
+                pass
+
+            cancel_event = cancel_button.click(doNothing, None, None, cancels=[submit_event])
     
 def mainloop(ostr):
     yield "Thinking...\n"
@@ -154,3 +156,4 @@ def mainloop(ostr):
     while (not o.done):
         o.process_current_task()
         yield f"MASTER PLAN:\n{o.to_string(0)}\nThinking..."
+    yield f"MASTER PLAN:\n{o.to_string(0)}\nDone!"
