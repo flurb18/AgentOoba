@@ -9,7 +9,6 @@ CTX_MAX = 16384
 DFS=False
 RECURSION_LEVEL=2
 MAX_TASKS=5
-OBJECTIVE="Eat a tasty snack."
 
 def fix_prompt(prompt: str) -> str:
     return "\n".join([line.strip() for line in (prompt.split("\n") if "\n" in prompt else [prompt])])[:CTX_MAX] + "\nResponse:\n"
@@ -57,8 +56,8 @@ class Objective:
         self.recursion_level = recursion_level
         prompt_context = f"The current objective is: {self.objective}\n"
         if self.parent:
-            prompt_context += f"This is the current objective because it will help complete the ultimate objective, which is: {OBJECTIVE}\n"
-        prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the list. Try to keep each item on the list to at most two sentences."
+            prompt_context += f"This is the current objective because it will help complete another objective, which is: {self.parent.objective}\n"
+        prompt=f"{prompt_context}\nDevelop a list of tasks that one must complete to attain the current objective. The list should have at most {MAX_TASKS} items. Respond only with the numbered list, in the order that one must complete the tasks, with each task on a new line. Don't say anything besides the list."
         response = ooba_call(prompt)
         self.tasks = strip_numbered_list(response.split("\n") if "\n" in response else [response])
         if len(self.tasks) == 0:
@@ -102,7 +101,7 @@ class Objective:
         return output
 
 def ui():
-    global DFS, RECURSION_LEVEL, MAX_TASKS, OBJECTIVE
+    global DFS, RECURSION_LEVEL, MAX_TASKS
     with gr.Column():
         with gr.Column():
             user_input = gr.Textbox(label="Goal for AgentOoba")
