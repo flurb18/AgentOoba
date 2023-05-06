@@ -11,6 +11,8 @@ RECURSION_LEVEL=2
 MAX_TASKS=5
 OBJECTIVE="Eat a tasty snack."
 
+shared.gradio['agent-state'] = gr.State()
+
 def fix_prompt(prompt: str) -> str:
     return "\n".join([line.strip() for line in (prompt.split("\n") if "\n" in prompt else [prompt])])[:CTX_MAX] + "\nResponse:\n"
 
@@ -141,7 +143,8 @@ def ui():
                 inputs = [shared.gradio[k] for k in shared.input_elements],
                 outputs = shared.gradio['interface_state']
             ).then(
-                    submit, inputs=[dfs_toggle, recursion_level_slider, max_tasks_slider] 
+                    submit, inputs=[dfs_toggle, recursion_level_slider, max_tasks_slider]
+            ).then(
                     mainloop, inputs=user_input, outputs=output
             )
     
