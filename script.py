@@ -67,8 +67,8 @@ def ooba_call(prompt, stop = None):
         else:
             answer = a[0]
     if VERBOSE:
-        print(f"PROMPT: {prompt}\n", file=sys.stderr)
-        print(f"ANSWER: {answer}\n", file=sys.stderr)
+        print(f"-----------------------INPUT-----------------------\n{prompt}\n", file=sys.stderr)
+        print(f"----------------------OUTPUT-----------------------\n{answer}\n", file=sys.stderr)
     return answer
 
 class Objective:
@@ -113,7 +113,7 @@ class Objective:
         return response
     
     def split_objective(self):
-        directive = f"Develop a plan to complete _TASK_, keeping in mind why _TASK_ is desired. The plan should come as a list of tasks, each a step in the process of completing _TASK_. The list should be written in the order that the tasks must be completed. The scope of the list should be limited to that which is strictly necessary to complete _TASK_. The number of tasks in the list should be between 1 and {self.max_tasks}. Keep the descriptions of the tasks short but descriptive. Do not include any tasks that are achieved by completing a task in our objectives or in a task list for one of our objectives. Respond with the numbered list in the following format:\n1. (first task to be completed)\n2. (second task to be completed)\n3. (third task to be completed)\netc. Do not include any text in your response other than the list; do not ask for clarifications."
+        directive = f"Develop a plan to complete _TASK_, keeping in mind why _TASK_ is desired. The plan should come as a list of tasks, each a step in the process of completing _TASK_. The list should be written in the order that the tasks must be completed. The scope of the list should be limited to that which is strictly necessary to complete _TASK_. The number of tasks in the list should be between 1 and {self.max_tasks}. Keep the descriptions of the tasks short but descriptive enough to complete the task. Do not include any tasks that are already in a task list for one of our objectives. Respond with the numbered list in the following format:\n1. (first task to be completed)\n2. (second task to be completed)\n3. (third task to be completed)\netc. Do not include any text in your response other than the list; do not ask for clarifications."
         prompt = self.make_prompt(directive, True)
         response = ooba_call(prompt).strip()
         list_pos = response.find("1")
@@ -141,7 +141,7 @@ class Objective:
         reverse_context = []
         p_it = self
         r = self.recursion_level
-        reverse_context.append(f"")
+        reverse_context.append(f"Objective {r} is the current task we are working on.")
         while p_it.parent:
             p_it = p_it.parent
             parent_task_list_str = "\n".join([f"Objective {r-1}, Task {str(i+1)}: {p_it.tasks[i] if isinstance(p_it.tasks[i], str) else p_it.tasks[i].objective}" for i in range(len(p_it.tasks))])
