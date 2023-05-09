@@ -1,1 +1,3 @@
-gradio
+langchain
+typing
+wikipedia
