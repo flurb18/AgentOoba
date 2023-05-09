@@ -5,24 +5,37 @@ import modules
 from modules import chat, shared
 from modules.text_generation import generate_reply
 
-CTX_MAX = 16384
-VERBOSE=False
+CTX_MAX = 1500
+VERBOSE=True
 MAX_TASKS_DEFAULT=5
 RECURSION_DEPTH_DEFAULT=3
+HUMAN_PREFIX="### Human: "
+ASSISTANT_PREFIX="### Assistant: "
+
+def preface_prompt(prompt: str) -> str:
+    return HUMAN_PREFIX + prompt
 
 def fix_prompt(prompt: str) -> str:
-    return "\n".join([line.strip() for line in (prompt.split("\n") if "\n" in prompt else [prompt])])[:CTX_MAX] + "\nResponse:\n"
+    return preface_prompt("\n".join([line.strip() for line in (prompt.split("\n") if "\n" in prompt else [prompt])])[:CTX_MAX] + "\nResponse:\n")
+
+def fix_response(response: str) -> str:
+    if (ASSISTANT_PREFIX in response):
+        return response.split(ASSISTANT_PREFIX)[1]
+    else:
+        return response
 
 def ooba_call(prompt: str):
-    generator = generate_reply(fix_prompt(prompt), shared.persistent_interface_state, stopping_strings=[])
+    fixed_prompt = fix_prompt(prompt)
+    generator = generate_reply(fixed_prompt, shared.persistent_interface_state, stopping_strings=[HUMAN_PREFIX])
     answer = ''
     for a in generator:
         if isinstance(a, str):
             answer = a
         else:
             answer = a[0]
+    answer = fix_response(answer)
     if VERBOSE:
-        print(f"PROMPT: {fix_prompt(prompt)}\n")
+        print(f"PROMPT: {fixed_prompt}\n")
         print(f"ANSWER: {answer}\n")
     return answer
 
