@@ -65,14 +65,28 @@ from modules.text_generation import generate_reply
 
 
 # Define your Langchain tools here
+SEARX_HOST = "https://searxng.nicfab.eu/"
+TOP_K_WIKI = 5
+WOLFRAM_APP_ID = ""
 
-ENABLED_TOOLS = ["wikipedia", "searx-search"]
+# Tools can be (hopefully, not all tested) any from https://python.langchain.com/en/latest/modules/agents/tools/getting_started.html
+KNOWN_TOOLS = ["wikipedia", "searx-search", "requests_get", "requests_post"]
+# Customs tool descriptions, that seem to work better than the default ones. The keys here must match tool.name
+TOOL_DESCRIPTIONS = {
+    "Wikipedia" : "A collection of articles on various topics. Used when the task at hand is researching or acquiring general surface-level information about any topic. Input is a topic; the tool will then save general information about the topic to memory.",
+    "Searx Search" : "A URL search engine. Used when the task at hand is searching the internet for websites that mention a certain topic. Input is a search query; the tool will then save URLs for popular websites that reference the search query to memory.",
+    "Wolfram Alpha" : "A multipuporse calculator and information search engine. Used for mathematical computations and looking up specific numeric information. Input is a query or directive to calculate an expression; the tool will then save the expression and the result of the evaluation of that expression to memory.\nExample: Input - 'derivative of x^2' Output - 'derivative of x^2 is 2x'"
+}
+
 Tools = load_tools(
-    ENABLED_TOOLS,
+    KNOWN_TOOLS,
     searx_host=SEARX_HOST,
     top_k_results=TOP_K_WIKI,
     wolfram_alpha_appid=WOLFRAM_APP_ID
 )
+
+tool_checkboxes = {}
+tool_descriptions = {}
 
 OutputCSS = """
 <style>
@@ -175,16 +189,17 @@ class Objective:
     
     def assess_tools(self):
         for tool in Tools:
-            tool_str = f"Tool name: {tool.name}\nTool description: {tool.description}"
-            directive = AgentOobaVars["assess-tool-directive"].replace("_TOOL_", tool_str)
-            prompt = self.make_prompt(directive, True, False)
-            if 'yes' in ooba_call(prompt).strip().lower():
-                directive = AgentOobaVars["use-tool-directive"].replace("_TOOL_", tool_str)
+            if tool_checkboxes[tool.name]:
+                tool_str = f"Tool name: {tool.name}\nTool description: {tool_descriptions[tool.name]}"
+                directive = AgentOobaVars["assess-tool-directive"].replace("_TOOL_", tool_str)
                 prompt = self.make_prompt(directive, True, False)
-                response = ooba_call(prompt).strip()
-                negative_responses = ["i cannot", "am unable"]
-                if not any([neg in response.lower() for neg in negative_responses]):
-                    return True, tool, response
+                if 'yes' in ooba_call(prompt).strip().lower():
+                    directive = AgentOobaVars["use-tool-directive"].replace("_TOOL_", tool_str)
+                    prompt = self.make_prompt(directive, True, False)
+                    response = ooba_call(prompt).strip()
+                    negative_responses = ["i cannot", "am unable"]
+                    if not any([neg in response.lower() for neg in negative_responses]):
+                        return True, tool, response
         return False, None, None
     
     def prompt_objective_context(self, include_parent_tasks):
@@ -259,6 +274,12 @@ class Objective:
         out += "</ul>"
         return out
 
+def update_cb(box, value):
+    tool_checkboxes[box] = value
+
+def update_tool_description(tn, value):
+    tool_descriptions[tn] = value
+
 def ui():
     with gr.Column():
         with gr.Column():
@@ -290,6 +311,22 @@ def ui():
                         interactive=True
                     )
                 expanded_context_toggle = gr.Checkbox(label="Expanded Context (runs out of memroy at high recursion)", value = EXPANDED_CONTEXT_DEFAULT)
+            with gr.Column():
+                for tool in Tools:
+                    with gr.Row():
+                        tool_checkboxes[tool.name]=False
+                        if TOOL_DESCRIPTIONS.get(tool.name, False):
+                            tool_checkboxes[tool.name]=True
+                        cb = gr.Checkbox(label=tool.name, value=tool_checkboxes[tool.name], interactive=True)
+                        cb.change(lambda x, tn=tool.name: update_cb(tn, x), [cb])
+                        tool_descriptions[tool.name] = TOOL_DESCRIPTIONS.get(tool.name, tool.description)
+                        textbox = gr.Textbox(
+                            label="Tool description (as passed to the model)",
+                            interactive=True,
+                            value=tool_descriptions[tool.name]
+                        )
+                        textbox.change(lambda x, tn=tool.name: update_tool_description(tn, x), [textbox])
+
             with gr.Row():
                 submit_button = gr.Button("Execute", variant="primary")
                 cancel_button = gr.Button("Cancel")
