@@ -102,7 +102,7 @@ class Objective:
         return f"{HUMAN_PREFIX}\n{objstr}Instructions:\n{directive}\n\n{ASSISTANT_PREFIX}"
 
     def assess_model_ability(self):
-        directive = f"Assess whether or not you are capable of completing _TASK_ entirely with a single output. Remember that you are a large language model whose only tool is outputting text. If you are certain that you can achieve _TASK_ to its full extent with a single output, respond with the word 'Yes'. Otherwise, respond with the word 'No'. If you are unsure, if you need clarification, or if you think you can help complete _TASK_ partially but not fully, respond with the word 'No'."
+        directive = f"Assess whether or not you are capable of completing _TASK_ entirely with a single output. Remember that you are a large language model whose only tool is responding with text; you are not able to perform any physical tasks or interact with anything. The only ability you have is generating and saving textual output. If you cannot perform _TASK_, if _TASK_ involves physical interaction with the world, or if you can achieve _TASK_ partially but not fully, respond with the word 'No'. Otherwise, if you are certain that you can achieve _TASK_ to its full extent with a single output, respond with the word 'Yes'. If you are unsure or if you need clarification, respond with the word 'No'. Your response should only be either the word 'No' or the word 'Yes', depending on the criteria above."
         prompt = self.make_prompt(directive, True)
         response = ooba_call(prompt).strip()
         return 'yes' in response.lower()
