@@ -33,7 +33,7 @@ TOOL_DESCRIPTIONS = {
     "Wolfram Alpha" : "A multipuporse calculator and information search engine. Used for mathematical computations and looking up specific numeric information. Input is a query or directive to calculate an expression; the tool will then save the expression and the result of the evaluation of that expression to memory.\nExample: Input - 'derivative of x^2' Output - 'derivative of x^2 is 2x'"
 }
 
-ENABLED_TOOLS = ["wikipedia", "searx-search", "wolfram-alpha"]
+ENABLED_TOOLS = ["wikipedia", "searx-search"]
 Tools = load_tools(
     ENABLED_TOOLS,
     searx_host=SEARX_HOST,
