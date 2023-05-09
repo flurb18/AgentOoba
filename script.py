@@ -25,7 +25,7 @@ ASSISTANT_PREFIX = "Response:"
 # Define your Langchain tools here
 SEARX_HOST = "https://searxng.nicfab.eu/"
 TOP_K_WIKI = 5
-WOLFRAM_APP_ID = "YPXU88-L8EJUPX4L6"
+WOLFRAM_APP_ID = ""
 # The keys here must match tool.name
 TOOL_DESCRIPTIONS = {
     "Wikipedia" : "A collection of articles on various topics. Used when the task at hand is researching or acquiring general surface-level information about any topic. Input is a topic; the tool will then save general information about the topic to memory.",

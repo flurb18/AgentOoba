@@ -1,13 +1,14 @@
 # AgentOoba
 An autonomous AI agent extension for Oobabooga's web ui
 
-[Screenshot](https://imgur.com/a/uapv6jd), [Sample Output](https://pastebin.com/JDgGaCCu)
+[Screenshot](https://imgur.com/a/uapv6jd), [Sample Output](https://pastebin.com/Mp5JHEUq)
 
 Prerequisites:
 Install https://github.com/oobabooga/text-generation-webui
 
 Installation:
 1. Clone the this repo inside text-generation-webui/extensions (cd /path/to/text-generation-webui/extensions && git clone https://github.com/flurb18/AgentOoba.git)
+2. cd AgentOoba && pip install -r requirements.txt
 
 Launching:
 1. Launch Oobabooga with the option --extensions AgentOoba.
