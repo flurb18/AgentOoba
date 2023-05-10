@@ -11,14 +11,11 @@ from langchain.tools import Tool
 from typing import Dict
 
 import chromadb
-
-#default opt out of chromadb telemetry
 from chromadb.config import Settings
-client = chromadb.Client(Settings(anonymized_telemetry=False))
 
 class ChromaInstance:
     def __init__(self, cutoff):
-        self.client = chromadb.Client()
+        self.client = chromadb.Client(Settings(anonymized_telemetry=False))
         self.collection = self.client.create_collection(name="processed-tasks")
         self.distance_cutoff = cutoff
 
