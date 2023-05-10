@@ -3,6 +3,7 @@ import sys
 import time
 import gradio as gr
 import re
+import uuid
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -134,14 +135,7 @@ class Objective:
             if len(self.tasks) == 0:
                 self.done = True
             else:
-                AgentOobaVars["processed-task-storage"].add_tasks(self.tasks, self.id_strings())
-
-    def id_strings(self):
-        return [self.id_string(i) for i in range(len(self.tasks))]
-                
-    def id_string(self, task_idx):
-        recur_prefix = "" if not self.parent else self.parent.id_string(self.parent_task_idx)
-        return f"{recur_prefix}-obj-{self.recursion_level}-task-{task_idx+1}-"
+                AgentOobaVars["processed-task-storage"].add_tasks(self.tasks, uuid.uuid4().hex)
 
     def make_prompt(self, directive, objs, parent_tasks):
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
