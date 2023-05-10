@@ -63,12 +63,6 @@ from modules.text_generation import generate_reply
 
 
 # Define your Langchain tools here
-# The keys here must match tool.name
-TOOL_DESCRIPTIONS = {
-    "Wikipedia" : "A collection of articles on various topics. This tool can complete tasks such as researching or acquiring information about any topic. Input is a topic; the tool will then output general information about the topic.",
-    "Searx Search" : "A URL search engine. This tool can complete tasks such as searching the internet for websites that mention a certain topic. Input is a search query; the tool will then output URLs for popular websites that reference the search query.",
-    "Wolfram Alpha" : "A multipuporse calculator and information search engine. Used for mathematical computations and looking up specific numeric information. Input is a query or directive to calculate an expression; the tool will then output the expression and the result of the evaluation of that expression.\nExample: Input - 'derivative of x^2' Output - 'derivative of x^2 is 2x'"
-}
 
 ENABLED_TOOLS = ["wikipedia", "searx-search"]
 Tools = load_tools(
@@ -196,9 +190,9 @@ class Objective:
         reverse_context = []
         p_it = self
         r = self.recursion_level
-        if include_parent_tasks and self.parent:
-            task_list_str = "\n".join([(task if isinstance(task, str) else task.objective) for task in self.parent.tasks])
-            reverse_context.append(f"The following is a list of tasks that have already been processed:\n{task_list_str}")
+        #if include_parent_tasks and self.parent:
+        #    task_list_str = "\n".join([(task if isinstance(task, str) else task.objective) for task in self.parent.tasks])
+        #    reverse_context.append(f"The following is a list of tasks that have already been processed:\n{task_list_str}")
         reverse_context.append(f"Objective {r} is the current task we are working on.")
         while p_it.parent:
             child = p_it
