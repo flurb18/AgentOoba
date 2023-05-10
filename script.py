@@ -39,11 +39,12 @@ from modules import chat, shared
 from modules.text_generation import generate_reply
 
 CTX_MAX = 16384
-VERBOSE=False
+VERBOSE=True
 MAX_TASKS_DEFAULT=6
 RECURSION_DEPTH_DEFAULT=3
 DISTANCE_CUTOFF_DEFAULT=0.08
 EXPANDED_CONTEXT_DEFAULT=False
+OUTPUT_WORDS_DEFAULT=50
 
 HUMAN_PREFIX = "Prompt:"
 ASSISTANT_PREFIX = "Response:"
@@ -54,9 +55,9 @@ TOP_K_WIKI = 5
 WOLFRAM_APP_ID = ""
 # The keys here must match tool.name
 TOOL_DESCRIPTIONS = {
-    "Wikipedia" : "A collection of articles on various topics. Used when the task at hand is researching or acquiring general surface-level information about any topic. Input is a topic; the tool will then save general information about the topic to memory.",
-    "Searx Search" : "A URL search engine. Used when the task at hand is searching the internet for websites that mention a certain topic. Input is a search query; the tool will then save URLs for popular websites that reference the search query to memory.",
-    "Wolfram Alpha" : "A multipuporse calculator and information search engine. Used for mathematical computations and looking up specific numeric information. Input is a query or directive to calculate an expression; the tool will then save the expression and the result of the evaluation of that expression to memory.\nExample: Input - 'derivative of x^2' Output - 'derivative of x^2 is 2x'"
+    "Wikipedia" : "A collection of articles on various topics. This tool can complete tasks such as researching or acquiring information about any topic. Input is a topic; the tool will then output general information about the topic.",
+    "Searx Search" : "A URL search engine. This tool can complete tasks such as searching the internet for websites that mention a certain topic. Input is a search query; the tool will then output URLs for popular websites that reference the search query.",
+    "Wolfram Alpha" : "A multipuporse calculator and information search engine. Used for mathematical computations and looking up specific numeric information. Input is a query or directive to calculate an expression; the tool will then output the expression and the result of the evaluation of that expression.\nExample: Input - 'derivative of x^2' Output - 'derivative of x^2 is 2x'"
 }
 
 ENABLED_TOOLS = ["wikipedia", "searx-search"]
@@ -138,26 +139,26 @@ class Objective:
         recur_prefix = "" if not self.parent else self.parent.id_string(self.parent_task_idx)
         return f"{recur_prefix}-obj-{self.recursion_level}-task-{task_idx+1}-"
 
-    def make_prompt(self, directive, objs):
+    def make_prompt(self, directive, objs, parent_tasks):
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
         directive = directive.replace("_TASK_", f"Objective {self.recursion_level}").strip()
-        objstr = f"Objectives:\n{self.prompt_objective_context()}\n\n" if objs else ""
+        objstr = f"Objectives:\n{self.prompt_objective_context(parent_tasks)}\n\n" if objs else ""
         return f"{HUMAN_PREFIX}\n{objstr}Instructions:\n{directive}\n\n{ASSISTANT_PREFIX}"
 
     def assess_model_ability(self):
-        directive = f"Assess whether or not you are capable of completing _TASK_ entirely with a single output. Remember that you are a large language model whose only tool is responding with text; you are not able to perform any physical tasks or interact with anything. The only ability you have is generating and saving textual output. If you cannot perform _TASK_, if _TASK_ involves physical interaction with the world, if _TASK_ involves multiple steps, or if you can achieve _TASK_ partially but not fully, respond with the word 'No'. Otherwise, if you are certain that you can achieve _TASK_ to its full extent with a single output, respond with the word 'Yes'. If you are unsure or if you need clarification, respond with the word 'No'. Your response should only be either the word 'No' or the word 'Yes', depending on the criteria above."
-        prompt = self.make_prompt(directive, True)
+        directive = f"Assess whether or not you are capable of completing _TASK_ entirely with a single output. Remember that you are a large language model whose only tool is responding with text; you are not able to perform any physical tasks or access the internet. The only ability you have is generating and saving textual output. You can use this ability to achieve objectives such as writing, making decisions, drafting, summarizing, and others that involve textual output.\nIf your abilities enable you to complete _TASK_ with a single output, respond with the word 'Yes'. Otherwise, respond with the word 'No'. If you are unsure or if you need clarification, respond with the word 'No'. Your response should only be either the word 'No' or the word 'Yes', depending on the criteria above."
+        prompt = self.make_prompt(directive, True, False)
         response = ooba_call(prompt).strip()
         return 'yes' in response.lower()
 
     def do_objective(self):
-        directive = f"It has been determined that _TASK_ is an objective that requires textual output. Accomplish _TASK_, and respond with the output that _TASK_ requires. Do not respond with anything but the output that _TASK_ requires."
-        response = ooba_call(self.make_prompt(directive, True)).strip()
+        directive = f"It has been determined that _TASK_ is an objective that requires textual output, and you are capable of accomplishing _TASK_ with an output that has less than {AgentOobaVars['output-words']} words. Accomplish _TASK_, and respond with the output that _TASK_ requires, in less than {AgentOobaVars['output-words']} words. Do not respond with anything but the output that _TASK_ requires."
+        response = ooba_call(self.make_prompt(directive, True, False)).strip()
         return response
     
     def split_objective(self):
-        directive = f"Develop a plan to complete _TASK_, keeping in mind why _TASK_ is desired. The plan should come as a list of tasks, each a step in the process of completing _TASK_. The list should be written in the order that the tasks must be completed. The scope of the list should be limited to that which is strictly necessary to complete _TASK_. The number of tasks in the list should be between 1 and {self.max_tasks}. Keep the descriptions of the tasks short but descriptive enough to complete the task. Do not include any tasks that are already in a task list for one of our objectives. Respond with the numbered list in the following format:\n1. (first task to be completed)\n2. (second task to be completed)\n3. (third task to be completed)\netc. Do not include any text in your response other than the list; do not ask for clarifications."
-        prompt = self.make_prompt(directive, True)
+        directive = f"Develop a plan to complete _TASK_, keeping in mind why _TASK_ is desired. The plan should come as a list of tasks, each a step in the process of completing _TASK_. The list should be written in the order that the tasks must be completed. The contents of the list should be limited to items which are strictly necessary to complete _TASK_. Do not include any tasks in the list that have already been processed. The number of tasks in the list should be between 1 and {self.max_tasks}. Keep the descriptions of the tasks short but descriptive enough to complete the task.  Respond with the numbered list in the following format:\n1. (first task to be completed)\n2. (second task to be completed)\n3. (third task to be completed)\netc. Do not include any text in your response other than the list; do not ask for clarifications."
+        prompt = self.make_prompt(directive, True, True)
         response = ooba_call(prompt).strip()
         list_pos = response.find("1")
         if list_pos == -1:
@@ -167,23 +168,26 @@ class Objective:
     
     def assess_tools(self):
         for tool in Tools:
-            directive = f"You have access to the following tool:\n\nTool name: {tool.name}\nTool description: {TOOL_DESCRIPTIONS[tool.name]}\n\nAsses whether it is possible to achieve _TASK_ by providing a single input to the tool. If you think it is not possible, respond with the word 'No'. If you are unsure, respond with the word 'No'. If you think the tool would assist in completing _TASK_ partially but wouldn't be able to complete _TASK_ entirely by itself, respond with the word 'No'. If you need clarification, respond with the word 'No'. Otherwise, if none of the previous criteria apply and if you are absolutely certain that a single usage of the tool can completely achieve _TASK_, respond with the word 'Yes'. As a reminder, your response should just be the word 'Yes' or the word 'No' and nothing else. Do not respond with anything besides 'Yes' or 'No'; do not provide any explanation or reasoning."
-            prompt = self.make_prompt(directive, True)
+            directive = f"You have access to the following tool:\n\nTool name: {tool.name}\nTool description: {TOOL_DESCRIPTIONS[tool.name]}\n\nAsses whether it is possible for one to achieve _TASK_ by providing a single input to the given tool and receiving the tool's output. If any of the following criteria apply, respond with the word 'No':\nIf you think it is not possible;\nIf you are unsure; or\nIf you need clarification.\nOtherwise, if none of the previous criteria apply, and it is possible to achieve _TASK_ by receiving the output from the tool for a certain input, respond with the word 'Yes'. As a reminder, your response should just be the word 'Yes' or the word 'No' and nothing else. Do not respond with anything besides 'Yes' or 'No'; do not provide any explanation or reasoning."
+            prompt = self.make_prompt(directive, True, False)
             response = ooba_call(prompt).strip().lower()
             negative_responses = ["no","cannot", "can't", "cant"]
             if not any([neg in response for neg in negative_responses]):
-                directive = f"You have access to the following tool:\n\nTool name: {tool.name}\nTool description: {TOOL_DESCRIPTIONS[tool.name]}\n\nIt has been determined that the tool is capable of achieving _TASK_ in its entirety. Create an input for the tool that would achieve _TASK_ upon being passed to the tool, and respond with the created input. If no such input is possible, respond with the word 'cannot'. Do not include anything in your response other than the created input for the tool or the word 'cannot' depending on the criteria above."
-                prompt = self.make_prompt(directive, True)
+                directive = f"You have access to the following tool:\n\nTool name: {tool.name}\nTool description: {TOOL_DESCRIPTIONS[tool.name]}\n\nIt has been determined that the tool is capable of achieving _TASK_ in its entirety. Create an input for the tool such that upon receiving the output of the tool given that input, one would achieve _TASK_. If no such input is possible, respond with the word 'cannot'. Do not include anything in your response other than the created input for the tool or the word 'cannot' depending on the criteria above."
+                prompt = self.make_prompt(directive, True, False)
                 response = ooba_call(prompt).strip().lower()
                 negative_responses = ["cannot", "can't", "cant"]
                 if not any([neg in response for neg in negative_responses]):
                     return True, tool, response
         return False, None, None
     
-    def prompt_objective_context(self):
+    def prompt_objective_context(self, include_parent_tasks):
         reverse_context = []
         p_it = self
         r = self.recursion_level
+        if include_parent_tasks and self.parent:
+            task_list_str = "\n".join([(task if isinstance(task, str) else task.objective) for task in self.parent.tasks])
+            reverse_context.append(f"The following is a list of tasks that have already been processed:\n{task_list_str}")
         reverse_context.append(f"Objective {r} is the current task we are working on.")
         while p_it.parent:
             child = p_it
@@ -316,6 +320,7 @@ AgentOobaVars = {
     "recursion-level" : RECURSION_DEPTH_DEFAULT,
     "max-tasks" : MAX_TASKS_DEFAULT,
     "expanded-context" : EXPANDED_CONTEXT_DEFAULT,
+    "output-words" : OUTPUT_WORDS_DEFAULT,
     "processed-task-storage" : None,
     "main-objective": None
 }
@@ -326,6 +331,7 @@ def mainloop(ostr, r, max_t, c, expanded_context):
     AgentOobaVars["expanded-context"] = expanded_context
     AgentOobaVars["processed-task-storage"] = ChromaInstance(c)
     AgentOobaVars["processed-task-storage"].add_tasks([ostr],["MAIN OBJECTIVE"])
+    AgentOobaVars["output-words"] = OUTPUT_WORDS_DEFAULT
     yield f"{OutputCSS}<br>Thinking...<br>"
     AgentOobaVars["main-objective"] = Objective(ostr, -1, r, max_t, 1)
     while (not AgentOobaVars["main-objective"].done):
