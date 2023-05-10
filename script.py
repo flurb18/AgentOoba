@@ -12,7 +12,7 @@ from typing import Dict
 
 import chromadb
 
-#default opt our of chromadb telemetry
+#default opt out of chromadb telemetry
 from chromadb.config import Settings
 client = chromadb.Client(Settings(anonymized_telemetry=False))
 
