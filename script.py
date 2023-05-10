@@ -10,14 +10,40 @@ from langchain.agents import load_tools
 from langchain.tools import Tool
 from typing import Dict
 
+import chromadb
+
+class ChromaInstance:
+    def __init__(self, cutoff):
+        self.client = chromadb.Client()
+        self.collection = self.client.create_collection(name="processed-tasks")
+        self.distance_cutoff = cutoff
+
+    def add_tasks(self, tasks, task_ids):
+        self.collection.add(
+            documents = tasks,
+            ids = task_ids
+        )
+
+    def task_exists(self, task):
+        results = self.collection.query(
+            query_texts=[task],
+            n_results=1
+        )
+        if len(results["distances"][0]) == 0:
+            return False
+        return results["distances"][0][0] < self.distance_cutoff
+
+
 import modules
 from modules import chat, shared
 from modules.text_generation import generate_reply
 
 CTX_MAX = 16384
-VERBOSE=True
+VERBOSE=False
 MAX_TASKS_DEFAULT=6
 RECURSION_DEPTH_DEFAULT=3
+DISTANCE_CUTOFF_DEFAULT=0.08
+EXPANDED_CONTEXT_DEFAULT=False
 
 HUMAN_PREFIX = "Prompt:"
 ASSISTANT_PREFIX = "Response:"
@@ -72,7 +98,7 @@ def ooba_call(prompt, stop = None):
     return answer
 
 class Objective:
-    def __init__(self, objective, recursion_max, max_tasks, recursion_level, parent=None):
+    def __init__(self, objective, task_idx, recursion_max, max_tasks, recursion_level, parent=None):
         self.objective = objective
         self.parent = parent
         self.recursion_level = recursion_level
@@ -80,6 +106,7 @@ class Objective:
         self.max_tasks = max_tasks
         self.tasks = []
         self.done = (recursion_level == recursion_max)
+        self.parent_task_idx = task_idx
         self.current_task_idx = 0
         self.output = ""
         if self.assess_model_ability():
@@ -91,9 +118,25 @@ class Objective:
             self.done = True
             self.output = f"TOOL FOUND {tool.name} input={tool_input}"
         else:
-            self.tasks = self.split_objective()
+            output_tasks = self.split_objective()
+            self.tasks = [task for task in output_tasks if not AgentOobaVars["processed-task-storage"].task_exists(task)]
+            if VERBOSE and len(self.tasks) < len(output_tasks):
+                print("Tasks pruned\n", file=sys.stderr)
+                before = "\n".join(output_tasks)
+                after = "\n".join(self.tasks)
+                print(f"Before:\n{before}\n", file=sys.stderr)
+                print(f"After:\n{after}\n", file=sys.stderr)
             if len(self.tasks) == 0:
                 self.done = True
+            else:
+                AgentOobaVars["processed-task-storage"].add_tasks(self.tasks, self.id_strings())
+
+    def id_strings(self):
+        return [self.id_string(i) for i in range(len(self.tasks))]
+                
+    def id_string(self, task_idx):
+        recur_prefix = "" if not self.parent else self.parent.id_string(self.parent_task_idx)
+        return f"{recur_prefix}-obj-{self.recursion_level}-task-{task_idx+1}-"
 
     def make_prompt(self, directive, objs):
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
@@ -102,13 +145,13 @@ class Objective:
         return f"{HUMAN_PREFIX}\n{objstr}Instructions:\n{directive}\n\n{ASSISTANT_PREFIX}"
 
     def assess_model_ability(self):
-        directive = f"Assess whether or not you are capable of completing _TASK_ entirely with a single output. Remember that you are a large language model whose only tool is responding with text; you are not able to perform any physical tasks or interact with anything. The only ability you have is generating and saving textual output. If you cannot perform _TASK_, if _TASK_ involves physical interaction with the world, or if you can achieve _TASK_ partially but not fully, respond with the word 'No'. Otherwise, if you are certain that you can achieve _TASK_ to its full extent with a single output, respond with the word 'Yes'. If you are unsure or if you need clarification, respond with the word 'No'. Your response should only be either the word 'No' or the word 'Yes', depending on the criteria above."
+        directive = f"Assess whether or not you are capable of completing _TASK_ entirely with a single output. Remember that you are a large language model whose only tool is responding with text; you are not able to perform any physical tasks or interact with anything. The only ability you have is generating and saving textual output. If you cannot perform _TASK_, if _TASK_ involves physical interaction with the world, if _TASK_ involves multiple steps, or if you can achieve _TASK_ partially but not fully, respond with the word 'No'. Otherwise, if you are certain that you can achieve _TASK_ to its full extent with a single output, respond with the word 'Yes'. If you are unsure or if you need clarification, respond with the word 'No'. Your response should only be either the word 'No' or the word 'Yes', depending on the criteria above."
         prompt = self.make_prompt(directive, True)
         response = ooba_call(prompt).strip()
         return 'yes' in response.lower()
 
     def do_objective(self):
-        directive = f"It has been determined that you are able to achieve _TASK_. Complete _TASK_ to the best of your ability. Respond with your output for completing _TASK_ and nothing else."
+        directive = f"It has been determined that _TASK_ is an objective that requires textual output. Accomplish _TASK_, and respond with the output that _TASK_ requires. Do not respond with anything but the output that _TASK_ requires."
         response = ooba_call(self.make_prompt(directive, True)).strip()
         return response
     
@@ -143,9 +186,13 @@ class Objective:
         r = self.recursion_level
         reverse_context.append(f"Objective {r} is the current task we are working on.")
         while p_it.parent:
+            child = p_it
             p_it = p_it.parent
-            parent_task_list_str = "\n".join([f"Objective {r-1}, Task {str(i+1)}: {p_it.tasks[i] if isinstance(p_it.tasks[i], str) else p_it.tasks[i].objective}" for i in range(len(p_it.tasks))])
-            reverse_context.append(f"We have developed the following numbered list of tasks that we must complete to achieve Objective {r-1}:\n{parent_task_list_str}\n\nThe current task that we are at among these is Objective {r-1}, Task {p_it.current_task_idx+1}. We will refer to Objective {r-1}, Task {p_it.current_task_idx+1} as Objective {r}.")
+            if AgentOobaVars["expanded-context"]:
+                parent_task_list_str = "\n".join([f"Objective {r-1}, Task {str(i+1)}: {p_it.tasks[i] if isinstance(p_it.tasks[i], str) else p_it.tasks[i].objective}" for i in range(len(p_it.tasks))])
+                reverse_context.append(f"We have developed the following numbered list of tasks that we must complete to achieve Objective {r-1}:\n{parent_task_list_str}\n\nThe current task that we are at among these is Objective {r-1}, Task {p_it.current_task_idx+1}. We will refer to Objective {r-1}, Task {p_it.current_task_idx+1} as Objective {r}.")
+            else:
+                reverse_context.append(f"In order to achieve Objective {r-1}, we must complete Objective {r}. Objective {r} is: {child.objective}")
             r -= 1
         assert r == 1
         reverse_context.append(f"Objective 1 is what we ultimately want to achieve. Objective 1 is: {p_it.objective}")
@@ -161,12 +208,12 @@ class Objective:
             if isinstance(current_task, str):
                 self.tasks[self.current_task_idx] = Objective(
                     current_task,
+                    self.current_task_idx,
                     self.recursion_max,
                     self.max_tasks,
                     self.recursion_level + 1,
                     parent=self
                 )
-                AgentOobaVars["memory"]["processed-tasks"].append(current_task)
                 self.current_task_idx += 1
                 if self.current_task_idx == len(self.tasks):
                     self.current_task_idx = 0
@@ -207,37 +254,49 @@ def ui():
         with gr.Column():
             output = gr.HTML(label="Output", value="")
             user_input = gr.Textbox(label="Goal for AgentOoba") 
-            max_tasks_slider = gr.Slider(
-                label="Max tasks in a list",
-                minimum=3,
-                maximum=12,
-                step=1,
-                value=MAX_TASKS_DEFAULT,
-                interactive=True
-            )
-            recursion_level_slider = gr.Slider(
-                label="Recursion Depth",
-                minimum=1,
-                maximum=7,
-                step=1,
-                value=RECURSION_DEPTH_DEFAULT,
-                interactive=True
-            )
+            with gr.Row():
+                with gr.Column():
+                    recursion_level_slider = gr.Slider(
+                        label="Recursion Depth",
+                        minimum=1,
+                        maximum=7,
+                        step=1,
+                        value=RECURSION_DEPTH_DEFAULT,
+                        interactive=True
+                    )
+                    distance_cutoff_slider = gr.Slider(
+                        label = "Task Similarity Cutoff",
+                        minimum = 0,
+                        maximum = 1,
+                        step = 0.01,
+                        value = DISTANCE_CUTOFF_DEFAULT
+                    )
+                    max_tasks_slider = gr.Slider(
+                        label="Max tasks in a list",
+                        minimum=3,
+                        maximum=12,
+                        step=1,
+                        value=MAX_TASKS_DEFAULT,
+                        interactive=True
+                    )
+                expanded_context_toggle = gr.Checkbox(label="Expanded Context (runs out of memroy at high recursion)", value = EXPANDED_CONTEXT_DEFAULT)
             with gr.Row():
                 submit_button = gr.Button("Execute", variant="primary")
                 cancel_button = gr.Button("Cancel")
 
+    mainloop_inputs = [user_input, recursion_level_slider, max_tasks_slider, distance_cutoff_slider, expanded_context_toggle]
+
     AgentOobaVars["submit-event-1"] = submit_button.click(
         modules.ui.gather_interface_values,
         inputs = [shared.gradio[k] for k in shared.input_elements],
-        outputs = shared.gradio['interface_state'],
-    ).then(mainloop, inputs=[user_input, recursion_level_slider, max_tasks_slider], outputs=output)
+        outputs = shared.gradio['interface_state']
+    ).then(mainloop, inputs=mainloop_inputs, outputs=output)
 
     AgentOobaVars["submit-event-2"] = user_input.submit(
         modules.ui.gather_interface_values,
         inputs = [shared.gradio[k] for k in shared.input_elements],
-        outputs = shared.gradio['interface_state'],
-    ).then(mainloop, inputs=[user_input, recursion_level_slider, max_tasks_slider], outputs=output)
+        outputs = shared.gradio['interface_state']
+    ).then(mainloop, inputs=mainloop_inputs, outputs=output)
 
     def cancel_agent():
         AgentOobaVars["main-objective"].done = True
@@ -256,16 +315,19 @@ AgentOobaVars = {
     "waiting-input" : False,
     "recursion-level" : RECURSION_DEPTH_DEFAULT,
     "max-tasks" : MAX_TASKS_DEFAULT,
-    "memory" : {},
+    "expanded-context" : EXPANDED_CONTEXT_DEFAULT,
+    "processed-task-storage" : None,
     "main-objective": None
 }
             
-def mainloop(ostr, r, max_t):
+def mainloop(ostr, r, max_t, c, expanded_context):
     AgentOobaVars["recursion-level"] = r
     AgentOobaVars["max-tasks"] = max_t
-    AgentOobaVars["memory"]["processed-tasks"] = []
+    AgentOobaVars["expanded-context"] = expanded_context
+    AgentOobaVars["processed-task-storage"] = ChromaInstance(c)
+    AgentOobaVars["processed-task-storage"].add_tasks([ostr],["MAIN OBJECTIVE"])
     yield f"{OutputCSS}<br>Thinking...<br>"
-    AgentOobaVars["main-objective"] = Objective(ostr, r, max_t, 1)
+    AgentOobaVars["main-objective"] = Objective(ostr, -1, r, max_t, 1)
     while (not AgentOobaVars["main-objective"].done):
         yield f'{OutputCSS}<div class="oobaAgentBase"><br>{AgentOobaVars["main-objective"].to_string(True)}<br>Thinking...</div>'
         AgentOobaVars["main-objective"].process_current_task()

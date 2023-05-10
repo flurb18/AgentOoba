@@ -2,3 +2,5 @@ langchain
 typing
 wikipedia
 wolframalpha
+chromadb
+InstructorEmbedding
