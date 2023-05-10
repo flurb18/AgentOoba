@@ -135,7 +135,7 @@ class Objective:
             if len(self.tasks) == 0:
                 self.done = True
             else:
-                AgentOobaVars["processed-task-storage"].add_tasks(self.tasks, uuid.uuid4().hex)
+                AgentOobaVars["processed-task-storage"].add_tasks(self.tasks, [uuid.uuid4().hex for task in self.tasks])
 
     def make_prompt(self, directive, objs, parent_tasks):
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
@@ -169,9 +169,7 @@ class Objective:
             tool_str = f"Tool name: {tool.name}\nTool description: {tool.description}"
             directive = AgentOobaVars["assess-tool-directive"].replace("_TOOL_", tool_str)
             prompt = self.make_prompt(directive, True, False)
-            response = ooba_call(prompt).strip().lower()
-            negative_responses = ["no","cannot", "can't", "cant"]
-            if not any([neg in response for neg in negative_responses]):
+            if 'yes' in ooba_call(prompt).strip().lower():
                 directive = AgentOobaVars["use-tool-directive"].replace("_TOOL_", tool_str)
                 prompt = self.make_prompt(directive, True, False)
                 response = ooba_call(prompt).strip()
