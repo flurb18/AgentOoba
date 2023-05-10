@@ -3,4 +3,5 @@ typing
 wikipedia
 wolframalpha
 chromadb
+dotenv
 InstructorEmbedding

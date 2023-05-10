@@ -3,6 +3,28 @@ import sys
 import time
 import gradio as gr
 import re
+from dotenv import load_dotenv
+
+load_dotenv()
+
+CTX_MAX = int(os.getenv("CTX_MAX"))
+VERBOSE = "true" in os.getenv("VERBOSE").lower()
+MAX_TASKS_DEFAULT = int(os.getenv("MAX_TASKS_DEFAULT"))
+RECURSION_DEPTH_DEFAULT = int(os.getenv("RECURSION_DEPTH_DEFAULT"))
+DISTANCE_CUTOFF_DEFAULT = float(os.getenv("DISTANCE_CUTOFF_DEFAULT"))
+EXPANDED_CONTEXT_DEFAULT = "true" in os.getenv("EXPANDED_CONTEXT_DEFAULT").lower()
+
+SEARX_HOST = os.getenv("SEARX_HOST")
+TOP_K_WIKI = int(os.getenv("TOP_K_WIKI"))
+WOLFRAM_APP_ID = os.getenv("WOLFRAM_APP_ID")
+
+HUMAN_PREFIX = os.getenv("HUMAN_PREFIX")
+ASSISTANT_PREFIX = os.getenv("ASSISTANT_PREFIX")
+ASSESS_ABILITY_DIRECTIVE = os.getenv("ASSESS_ABILITY_DIRECTIVE")
+DO_OBJECTIVE_DIRECTIVE = os.getenv("DO_OBJECTIVE_DIRECTIVE")
+SPLIT_OBJECTIVE_DIRECTIVE = os.getenv("SPLIT_OBJECTIVE_DIRECTIVE")
+ASSESS_TOOL_DIRECTIVE = os.getenv("ASSESS_TOOL_DIRECTIVE")
+USE_TOOL_DIRECTIVE = os.getenv("USE_TOOL_DIRECTIVE")
 
 from langchain.callbacks.manager import CallbackManagerForLLMRun
 from langchain.llms.base import LLM
@@ -39,21 +61,8 @@ import modules
 from modules import chat, shared
 from modules.text_generation import generate_reply
 
-CTX_MAX = 16384
-VERBOSE=True
-MAX_TASKS_DEFAULT=6
-RECURSION_DEPTH_DEFAULT=3
-DISTANCE_CUTOFF_DEFAULT=0.08
-EXPANDED_CONTEXT_DEFAULT=False
-OUTPUT_WORDS_DEFAULT=50
-
-HUMAN_PREFIX = "Prompt:"
-ASSISTANT_PREFIX = "Response:"
 
 # Define your Langchain tools here
-SEARX_HOST = "https://searxng.nicfab.eu/"
-TOP_K_WIKI = 5
-WOLFRAM_APP_ID = ""
 # The keys here must match tool.name
 TOOL_DESCRIPTIONS = {
     "Wikipedia" : "A collection of articles on various topics. This tool can complete tasks such as researching or acquiring information about any topic. Input is a topic; the tool will then output general information about the topic.",
@@ -147,18 +156,18 @@ class Objective:
         return f"{HUMAN_PREFIX}\n{objstr}Instructions:\n{directive}\n\n{ASSISTANT_PREFIX}"
 
     def assess_model_ability(self):
-        directive = f"Assess whether or not you are capable of completing _TASK_ entirely with a single output. Remember that you are a large language model whose only tool is responding with text; you are not able to perform any physical tasks or access the internet. The only ability you have is generating and saving textual output. You can use this ability to achieve objectives such as writing, making decisions, drafting, summarizing, and others that involve textual output.\nIf your abilities enable you to complete _TASK_ with a single output, respond with the word 'Yes'. Otherwise, respond with the word 'No'. If you are unsure or if you need clarification, respond with the word 'No'. Your response should only be either the word 'No' or the word 'Yes', depending on the criteria above."
+        directive = AgentOobaVars["assess-ability-directive"]
         prompt = self.make_prompt(directive, True, False)
         response = ooba_call(prompt).strip()
         return 'yes' in response.lower()
 
     def do_objective(self):
-        directive = f"It has been determined that _TASK_ is an objective that requires textual output, and you are capable of accomplishing _TASK_ with an output that has less than {AgentOobaVars['output-words']} words. Accomplish _TASK_, and respond with the output that _TASK_ requires, in less than {AgentOobaVars['output-words']} words. Do not respond with anything but the output that _TASK_ requires."
+        directive = AgentOobaVars["do-objective-directive"]
         response = ooba_call(self.make_prompt(directive, True, False)).strip()
         return response
     
     def split_objective(self):
-        directive = f"Develop a plan to complete _TASK_, keeping in mind why _TASK_ is desired. The plan should come as a list of tasks, each a step in the process of completing _TASK_. The list should be written in the order that the tasks must be completed. The contents of the list should be limited to items which are strictly necessary to complete _TASK_. Do not include any tasks in the list that have already been processed. The number of tasks in the list should be between 1 and {self.max_tasks}. Keep the descriptions of the tasks short but descriptive enough to complete the task.  Respond with the numbered list in the following format:\n1. (first task to be completed)\n2. (second task to be completed)\n3. (third task to be completed)\netc. Do not include any text in your response other than the list; do not ask for clarifications."
+        directive = AgentOobaVars["split-objective-directive"].replace("_MAX_TASKS_", str(self.max_tasks))
         prompt = self.make_prompt(directive, True, True)
         response = ooba_call(prompt).strip()
         list_pos = response.find("1")
@@ -169,16 +178,17 @@ class Objective:
     
     def assess_tools(self):
         for tool in Tools:
-            directive = f"You have access to the following tool:\n\nTool name: {tool.name}\nTool description: {TOOL_DESCRIPTIONS[tool.name]}\n\nAsses whether it is possible for one to achieve _TASK_ by providing a single input to the given tool and receiving the tool's output. If any of the following criteria apply, respond with the word 'No':\nIf you think it is not possible;\nIf you are unsure; or\nIf you need clarification.\nOtherwise, if none of the previous criteria apply, and it is possible to achieve _TASK_ by receiving the output from the tool for a certain input, respond with the word 'Yes'. As a reminder, your response should just be the word 'Yes' or the word 'No' and nothing else. Do not respond with anything besides 'Yes' or 'No'; do not provide any explanation or reasoning."
+            tool_str = f"Tool name: {tool.name}\nTool description: {tool.description}"
+            directive = AgentOobaVars["assess-tool-directive"].replace("_TOOL_", tool_str)
             prompt = self.make_prompt(directive, True, False)
             response = ooba_call(prompt).strip().lower()
             negative_responses = ["no","cannot", "can't", "cant"]
             if not any([neg in response for neg in negative_responses]):
-                directive = f"You have access to the following tool:\n\nTool name: {tool.name}\nTool description: {TOOL_DESCRIPTIONS[tool.name]}\n\nIt has been determined that the tool is capable of achieving _TASK_ in its entirety. Create an input for the tool such that upon receiving the output of the tool given that input, one would achieve _TASK_. If no such input is possible, respond with the word 'cannot'. Do not include anything in your response other than the created input for the tool or the word 'cannot' depending on the criteria above."
+                directive = AgentOobaVars["use-tool-directive"].replace("_TOOL_", tool_str)
                 prompt = self.make_prompt(directive, True, False)
-                response = ooba_call(prompt).strip().lower()
-                negative_responses = ["cannot", "can't", "cant"]
-                if not any([neg in response for neg in negative_responses]):
+                response = ooba_call(prompt).strip()
+                negative_responses = ["i cannot"]
+                if not any([neg in response.lower() for neg in negative_responses]):
                     return True, tool, response
         return False, None, None
     
@@ -288,8 +298,31 @@ def ui():
             with gr.Row():
                 submit_button = gr.Button("Execute", variant="primary")
                 cancel_button = gr.Button("Cancel")
+            with gr.Accordion(label="Prompting", open = False):
+                aadinput = gr.TextArea(label="Assess ability directive", value = ASSESS_ABILITY_DIRECTIVE)
+                dodinput = gr.TextArea(label="Do objective directive", value = DO_OBJECTIVE_DIRECTIVE)
+                sodinput = gr.TextArea(label="Split objective directive", value = SPLIT_OBJECTIVE_DIRECTIVE)
+                atdinput = gr.TextArea(label="Assess tool directive", value = ASSESS_TOOL_DIRECTIVE)
+                utdinput = gr.TextArea(label="Use tool directive", value = USE_TOOL_DIRECTIVE)
+                aaddef = gr.Textbox(visible=False, value = ASSESS_ABILITY_DIRECTIVE)
+                doddef = gr.Textbox(visible=False, value = DO_OBJECTIVE_DIRECTIVE)
+                soddef = gr.Textbox(visible=False, value = SPLIT_OBJECTIVE_DIRECTIVE)
+                atddef = gr.Textbox(visible=False, value = ASSESS_TOOL_DIRECTIVE)
+                utddef = gr.Textbox(visible=False, value = USE_TOOL_DIRECTIVE)
+                reset_prompts_button = gr.Button("Reset prompts to default")
 
-    mainloop_inputs = [user_input, recursion_level_slider, max_tasks_slider, distance_cutoff_slider, expanded_context_toggle]
+    mainloop_inputs = [
+        user_input,
+        recursion_level_slider,
+        max_tasks_slider,
+        distance_cutoff_slider,
+        expanded_context_toggle,
+        aadinput,
+        dodinput,
+        sodinput,
+        atdinput,
+        utdinput
+    ]
 
     AgentOobaVars["submit-event-1"] = submit_button.click(
         modules.ui.gather_interface_values,
@@ -313,6 +346,19 @@ def ui():
         None,
         cancels = [AgentOobaVars["submit-event-1"], AgentOobaVars["submit-event-2"]]
     )
+
+    def reset_prompts():
+        aadinput.value = ASSESS_ABILITY_DIRECTIVE
+        dodinput.value = DO_OBJECTIVE_DIRECTIVE
+        sodinput.value = SPLIT_OBJECTIVE_DIRECTIVE
+        atdinput.value = ASSESS_TOOL_DIRECTIVE
+        utdinput.value = USE_TOOL_DIRECTIVE
+        
+    reset_event = reset_prompts_button.click(
+        lambda a,b,c,d,e: [a,b,c,d,e],
+        inputs = [aaddef, doddef, soddef, atddef, utddef],
+        outputs = [aadinput, dodinput, sodinput, atdinput, utdinput]
+    )
     
 AgentOobaVars = {
     "submit-event-1" : None,
@@ -321,18 +367,26 @@ AgentOobaVars = {
     "recursion-level" : RECURSION_DEPTH_DEFAULT,
     "max-tasks" : MAX_TASKS_DEFAULT,
     "expanded-context" : EXPANDED_CONTEXT_DEFAULT,
-    "output-words" : OUTPUT_WORDS_DEFAULT,
     "processed-task-storage" : None,
-    "main-objective": None
+    "main-objective": None,
+    "assess-ability-directive" : ASSESS_ABILITY_DIRECTIVE,
+    "do-objective-directive" : DO_OBJECTIVE_DIRECTIVE,
+    "split-objective-directive" : SPLIT_OBJECTIVE_DIRECTIVE,
+    "assess-tool-directive" : ASSESS_TOOL_DIRECTIVE,
+    "use-tool-directive" : USE_TOOL_DIRECTIVE
 }
             
-def mainloop(ostr, r, max_t, c, expanded_context):
+def mainloop(ostr, r, max_t, c, expanded_context, aad, dod, sod, atd, utd):
+    AgentOobaVars["assess-ability-directive"] = aad
+    AgentOobaVars["do-objective-directive"] = dod
+    AgentOobaVars["split-objective-directive"] = sod
+    AgentOobaVars["assess-tool-directive"] = atd
+    AgentOobaVars["use-tool-directive"] = utd
     AgentOobaVars["recursion-level"] = r
     AgentOobaVars["max-tasks"] = max_t
     AgentOobaVars["expanded-context"] = expanded_context
     AgentOobaVars["processed-task-storage"] = ChromaInstance(c)
     AgentOobaVars["processed-task-storage"].add_tasks([ostr],["MAIN OBJECTIVE"])
-    AgentOobaVars["output-words"] = OUTPUT_WORDS_DEFAULT
     yield f"{OutputCSS}<br>Thinking...<br>"
     AgentOobaVars["main-objective"] = Objective(ostr, -1, r, max_t, 1)
     while (not AgentOobaVars["main-objective"].done):
