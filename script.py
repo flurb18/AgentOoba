@@ -4,6 +4,7 @@ import time
 import gradio as gr
 import re
 import uuid
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -116,9 +117,12 @@ class Objective:
         self.current_task_idx = 0
         self.output = ""
         if self.assess_model_ability():
-            self.done = True
-            self.output= f"MODEL OUTPUT {self.do_objective()}"
-            return
+            response = self.do_objective()
+            negative_responses = ["i cannot", "am unable"]
+            if not any([neg in response for neg in negative_responses]):
+                self.done = True
+                self.output= f"MODEL OUTPUT {response}"
+                return
         tool_found, tool, tool_input = self.assess_tools()
         if tool_found:
             self.done = True
@@ -140,7 +144,7 @@ class Objective:
     def make_prompt(self, directive, objs, parent_tasks):
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
         directive = directive.replace("_TASK_", f"Objective {self.recursion_level}").strip()
-        objstr = f"Objectives:\n{self.prompt_objective_context(parent_tasks)}\n\n" if objs else ""
+        objstr = f"The following is a list of objectives. Remember them for future reference.\nObjectives:\n{self.prompt_objective_context(parent_tasks)}\n\n" if objs else ""
         return f"{AgentOobaVars['human-prefix']}\n{objstr}Instructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
 
     def assess_model_ability(self):
@@ -178,7 +182,7 @@ class Objective:
                 directive = AgentOobaVars["use-tool-directive"].replace("_TOOL_", tool_str)
                 prompt = self.make_prompt(directive, True, False)
                 response = ooba_call(prompt).strip()
-                negative_responses = ["i cannot"]
+                negative_responses = ["i cannot", "am unable"]
                 if not any([neg in response.lower() for neg in negative_responses]):
                     return True, tool, response
         return False, None, None
@@ -190,15 +194,15 @@ class Objective:
         #if include_parent_tasks and self.parent:
         #    task_list_str = "\n".join([(task if isinstance(task, str) else task.objective) for task in self.parent.tasks])
         #    reverse_context.append(f"The following is a list of tasks that have already been processed:\n{task_list_str}")
-        reverse_context.append(f"Objective {r} is the current task we are working on.")
+        #reverse_context.append(f"Objective {r} is the current task we are working on.")
         while p_it.parent:
             child = p_it
             p_it = p_it.parent
             if AgentOobaVars["expanded-context"]:
                 parent_task_list_str = "\n".join([f"Objective {r-1}, Task {str(i+1)}: {p_it.tasks[i] if isinstance(p_it.tasks[i], str) else p_it.tasks[i].objective}" for i in range(len(p_it.tasks))])
-                reverse_context.append(f"We have developed the following numbered list of tasks that we must complete to achieve Objective {r-1}:\n{parent_task_list_str}\n\nThe current task that we are at among these is Objective {r-1}, Task {p_it.current_task_idx+1}. We will refer to Objective {r-1}, Task {p_it.current_task_idx+1} as Objective {r}.")
+                reverse_context.append(f"We have developed the following numbered list of tasks that one must complete to achieve Objective {r-1}:\n{parent_task_list_str}\n\nThe current task that we are at among these is Objective {r-1}, Task {p_it.current_task_idx+1}. We will refer to Objective {r-1}, Task {p_it.current_task_idx+1} as Objective {r}.")
             else:
-                reverse_context.append(f"In order to complete Objective {r-1}, we must complete Objective {r}. Objective {r} is: {child.objective}")
+                reverse_context.append(f"In order to complete Objective {r-1}, one must complete Objective {r}. Objective {r} is: {child.objective}")
             r -= 1
         assert r == 1
         reverse_context.append(f"Objective 1 is: {p_it.objective}")
@@ -306,13 +310,22 @@ def ui():
                 human_prefix_def = gr.Textbox(visible=False, value = HUMAN_PREFIX)
                 assistant_prefix_def = gr.Textbox(visible=False, value = ASSISTANT_PREFIX)
                 reset_prompts_button = gr.Button("Reset prompts to default")
-
+                with gr.Row():
+                    export_prompts_button = gr.Button("Export prompts to JSON")
+                    import_prompts_button = gr.Button("Import prompts from JSON")
+                with gr.Row():
+                    exported_prompts = gr.File(interactive = False)
+                    imported_prompts = gr.File(interactive = True, type="binary")
+                    
     mainloop_inputs = [
         user_input,
         recursion_level_slider,
         max_tasks_slider,
         distance_cutoff_slider,
         expanded_context_toggle,
+    ]
+
+    prompt_inputs = [
         aadinput,
         dodinput,
         sodinput,
@@ -321,6 +334,8 @@ def ui():
         human_prefix_input,
         assistant_prefix_input
     ]
+
+    mainloop_inputs = mainloop_inputs + prompt_inputs
 
     AgentOobaVars["submit-event-1"] = submit_button.click(
         modules.ui.gather_interface_values,
@@ -344,18 +359,50 @@ def ui():
         None,
         cancels = [AgentOobaVars["submit-event-1"], AgentOobaVars["submit-event-2"]]
     )
-
-    def reset_prompts():
-        aadinput.value = ASSESS_ABILITY_DIRECTIVE
-        dodinput.value = DO_OBJECTIVE_DIRECTIVE
-        sodinput.value = SPLIT_OBJECTIVE_DIRECTIVE
-        atdinput.value = ASSESS_TOOL_DIRECTIVE
-        utdinput.value = USE_TOOL_DIRECTIVE
-        
+    
     reset_event = reset_prompts_button.click(
         lambda a,b,c,d,e,f,g: [a,b,c,d,e,f,g],
         inputs = [aaddef, doddef, soddef, atddef, utddef, human_prefix_def, assistant_prefix_def],
-        outputs = [aadinput, dodinput, sodinput, atdinput, utdinput, human_prefix_input, assistant_prefix_input]
+        outputs = prompt_inputs
+    )
+
+    def make_prompt_template(aad, dod, sod, atd, utd, human_prefix, assistant_prefix):
+        d = {
+            "assess-ability-directive" : aad,
+            "do-objective-directive" : dod,
+            "split-objective-directive" : sod,
+            "assess-tool-directive" : atd,
+            "use-tool-directive" : utd,
+            "human-prefix" : human_prefix,
+            "assistant-prefix" : assistant_prefix
+        }
+        with open("extensions/AgentOoba/prompt_template.json", "w") as f:
+            f.write(json.dumps(d))
+            f.flush()
+        return "extensions/AgentOoba/prompt_template.json"
+
+    def import_prompt_template(template):
+        d = json.loads(template)
+        return [
+            d["assess-ability-directive"],
+            d["do-objective-directive"],
+            d["split-objective-directive"],
+            d["assess-tool-directive"],
+            d["use-tool-directive"],
+            d["human-prefix"],
+            d["assistant-prefix"]
+        ]
+            
+    export_event = export_prompts_button.click(
+        make_prompt_template,
+        inputs = prompt_inputs,
+        outputs = [exported_prompts]
+    )
+    
+    import_event = import_prompts_button.click(
+        import_prompt_template,
+        inputs = imported_prompts,
+        outputs = prompt_inputs
     )
     
 AgentOobaVars = {
