@@ -305,7 +305,10 @@ def ui():
                         interactive=True
                     )
                 expanded_context_toggle = gr.Checkbox(label="Expanded Context (runs out of memroy at high recursion)", value = EXPANDED_CONTEXT_DEFAULT)
-            with gr.Column():
+            with gr.Row():
+                submit_button = gr.Button("Execute", variant="primary")
+                cancel_button = gr.Button("Cancel")
+            with gr.Accordion(label="Tools", open = False):
                 for tool in Tools:
                     with gr.Row():
                         tool_checkboxes[tool.name]=False
@@ -320,10 +323,6 @@ def ui():
                             value=tool_descriptions[tool.name]
                         )
                         textbox.change(lambda x, tn=tool.name: update_tool_description(tn, x), [textbox])
-
-            with gr.Row():
-                submit_button = gr.Button("Execute", variant="primary")
-                cancel_button = gr.Button("Cancel")
             with gr.Accordion(label="Prompting", open = False):
                 with gr.Row():
                     human_prefix_input = gr.Textbox(label="Human prefix", value = HUMAN_PREFIX)
