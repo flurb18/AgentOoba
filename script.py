@@ -119,7 +119,7 @@ class Objective:
         if self.assess_model_ability():
             response = self.do_objective()
             negative_responses = ["i cannot", "am unable"]
-            if not any([neg in response for neg in negative_responses]):
+            if not any([neg in response.lower() for neg in negative_responses]):
                 self.done = True
                 self.output= f"MODEL OUTPUT {response}"
                 return
@@ -275,7 +275,7 @@ def ui():
                         interactive=True
                     )
                     distance_cutoff_slider = gr.Slider(
-                        label = "Task Similarity Cutoff",
+                        label = "Task Similarity Cutoff (Higher = less repeat tasks, but might accidentally drop tasks)",
                         minimum = 0,
                         maximum = 1,
                         step = 0.01,
