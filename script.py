@@ -63,12 +63,6 @@ import modules
 from modules import chat, shared
 from modules.text_generation import generate_reply
 
-
-# Define your Langchain tools here
-SEARX_HOST = "https://searxng.nicfab.eu/"
-TOP_K_WIKI = 5
-WOLFRAM_APP_ID = ""
-
 # Tools can be (hopefully, not all tested) any from https://python.langchain.com/en/latest/modules/agents/tools/getting_started.html
 KNOWN_TOOLS = ["wikipedia", "searx-search", "requests_get", "requests_post"]
 # Customs tool descriptions, that seem to work better than the default ones. The keys here must match tool.name
