@@ -90,8 +90,8 @@ OutputCSS = """
 </style>
 """
 
-def ooba_call(prompt, stop = None):
-    generator = generate_reply(prompt, shared.persistent_interface_state, stopping_strings=stop)
+def ooba_call(prompt):
+    generator = generate_reply(prompt, shared.persistent_interface_state, stopping_strings=[AgentOobaVars["human-prefix"]])
     answer = ''
     for a in generator:
         if isinstance(a, str):
@@ -141,7 +141,7 @@ class Objective:
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
         directive = directive.replace("_TASK_", f"Objective {self.recursion_level}").strip()
         objstr = f"Objectives:\n{self.prompt_objective_context(parent_tasks)}\n\n" if objs else ""
-        return f"{HUMAN_PREFIX}\n{objstr}Instructions:\n{directive}\n\n{ASSISTANT_PREFIX}"
+        return f"{AgentOobaVars['human-prefix']}\n{objstr}Instructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
 
     def assess_model_ability(self):
         directive = AgentOobaVars["assess-ability-directive"]
@@ -158,10 +158,15 @@ class Objective:
         directive = AgentOobaVars["split-objective-directive"].replace("_MAX_TASKS_", str(self.max_tasks))
         prompt = self.make_prompt(directive, True, True)
         response = ooba_call(prompt).strip()
-        list_pos = response.find("1")
+        possible_starts = ["\n1.","\n1","1.","1"]
+        for i in range(len(possible_starts)):
+            idx = i
+            list_pos = response.find(possible_starts[i])
+            if list_pos != -1:
+                break
         if list_pos == -1:
             return []
-        response = response[list_pos:]
+        response = response[list_pos + len(possible_starts[idx])-1:]
         return [ item[2:].strip(" -*[]()") for item in (response.split("\n") if "\n" in response else [response]) ]
     
     def assess_tools(self):
@@ -193,10 +198,10 @@ class Objective:
                 parent_task_list_str = "\n".join([f"Objective {r-1}, Task {str(i+1)}: {p_it.tasks[i] if isinstance(p_it.tasks[i], str) else p_it.tasks[i].objective}" for i in range(len(p_it.tasks))])
                 reverse_context.append(f"We have developed the following numbered list of tasks that we must complete to achieve Objective {r-1}:\n{parent_task_list_str}\n\nThe current task that we are at among these is Objective {r-1}, Task {p_it.current_task_idx+1}. We will refer to Objective {r-1}, Task {p_it.current_task_idx+1} as Objective {r}.")
             else:
-                reverse_context.append(f"In order to achieve Objective {r-1}, we must complete Objective {r}. Objective {r} is: {child.objective}")
+                reverse_context.append(f"In order to complete Objective {r-1}, we must complete Objective {r}. Objective {r} is: {child.objective}")
             r -= 1
         assert r == 1
-        reverse_context.append(f"Objective 1 is what we ultimately want to achieve. Objective 1 is: {p_it.objective}")
+        reverse_context.append(f"Objective 1 is: {p_it.objective}")
         reverse_context.reverse()
         return "\n".join(reverse_context)
     
@@ -285,6 +290,9 @@ def ui():
                 submit_button = gr.Button("Execute", variant="primary")
                 cancel_button = gr.Button("Cancel")
             with gr.Accordion(label="Prompting", open = False):
+                with gr.Row():
+                    human_prefix_input = gr.Textbox(label="Human prefix", value = HUMAN_PREFIX)
+                    assistant_prefix_input = gr.Textbox(label="Assistant prefix", value = ASSISTANT_PREFIX)
                 aadinput = gr.TextArea(label="Assess ability directive", value = ASSESS_ABILITY_DIRECTIVE)
                 dodinput = gr.TextArea(label="Do objective directive", value = DO_OBJECTIVE_DIRECTIVE)
                 sodinput = gr.TextArea(label="Split objective directive", value = SPLIT_OBJECTIVE_DIRECTIVE)
@@ -295,6 +303,8 @@ def ui():
                 soddef = gr.Textbox(visible=False, value = SPLIT_OBJECTIVE_DIRECTIVE)
                 atddef = gr.Textbox(visible=False, value = ASSESS_TOOL_DIRECTIVE)
                 utddef = gr.Textbox(visible=False, value = USE_TOOL_DIRECTIVE)
+                human_prefix_def = gr.Textbox(visible=False, value = HUMAN_PREFIX)
+                assistant_prefix_def = gr.Textbox(visible=False, value = ASSISTANT_PREFIX)
                 reset_prompts_button = gr.Button("Reset prompts to default")
 
     mainloop_inputs = [
@@ -307,7 +317,9 @@ def ui():
         dodinput,
         sodinput,
         atdinput,
-        utdinput
+        utdinput,
+        human_prefix_input,
+        assistant_prefix_input
     ]
 
     AgentOobaVars["submit-event-1"] = submit_button.click(
@@ -341,9 +353,9 @@ def ui():
         utdinput.value = USE_TOOL_DIRECTIVE
         
     reset_event = reset_prompts_button.click(
-        lambda a,b,c,d,e: [a,b,c,d,e],
-        inputs = [aaddef, doddef, soddef, atddef, utddef],
-        outputs = [aadinput, dodinput, sodinput, atdinput, utdinput]
+        lambda a,b,c,d,e,f,g: [a,b,c,d,e,f,g],
+        inputs = [aaddef, doddef, soddef, atddef, utddef, human_prefix_def, assistant_prefix_def],
+        outputs = [aadinput, dodinput, sodinput, atdinput, utdinput, human_prefix_input, assistant_prefix_input]
     )
     
 AgentOobaVars = {
@@ -359,10 +371,12 @@ AgentOobaVars = {
     "do-objective-directive" : DO_OBJECTIVE_DIRECTIVE,
     "split-objective-directive" : SPLIT_OBJECTIVE_DIRECTIVE,
     "assess-tool-directive" : ASSESS_TOOL_DIRECTIVE,
-    "use-tool-directive" : USE_TOOL_DIRECTIVE
+    "use-tool-directive" : USE_TOOL_DIRECTIVE,
+    "human-prefix" : HUMAN_PREFIX,
+    "assistant-prefix" : ASSISTANT_PREFIX
 }
             
-def mainloop(ostr, r, max_t, c, expanded_context, aad, dod, sod, atd, utd):
+def mainloop(ostr, r, max_t, c, expanded_context, aad, dod, sod, atd, utd, human_prefix, assistant_prefix):
     AgentOobaVars["assess-ability-directive"] = aad
     AgentOobaVars["do-objective-directive"] = dod
     AgentOobaVars["split-objective-directive"] = sod
@@ -371,6 +385,8 @@ def mainloop(ostr, r, max_t, c, expanded_context, aad, dod, sod, atd, utd):
     AgentOobaVars["recursion-level"] = r
     AgentOobaVars["max-tasks"] = max_t
     AgentOobaVars["expanded-context"] = expanded_context
+    AgentOobaVars["human-prefix"] = human_prefix
+    AgentOobaVars["assistant-prefix"] = assistant_prefix
     AgentOobaVars["processed-task-storage"] = ChromaInstance(c)
     AgentOobaVars["processed-task-storage"].add_tasks([ostr],["MAIN OBJECTIVE"])
     yield f"{OutputCSS}<br>Thinking...<br>"
