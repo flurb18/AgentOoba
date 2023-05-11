@@ -79,7 +79,7 @@ Tools = load_tools(
     wolfram_alpha_appid=WOLFRAM_APP_ID
 )
 
-tool_checkboxes = {}
+tool_active_states = {}
 tool_descriptions = {}
 
 OutputCSS = """
@@ -183,7 +183,7 @@ class Objective:
     
     def assess_tools(self):
         for tool in Tools:
-            if tool_checkboxes[tool.name]:
+            if tool_active_states[tool.name]:
                 tool_str = f"Tool name: {tool.name}\nTool description: {tool_descriptions[tool.name]}"
                 directive = AgentOobaVars["assess-tool-directive"].replace("_TOOL_", tool_str)
                 prompt = self.make_prompt(directive, True, False)
@@ -268,8 +268,8 @@ class Objective:
         out += "</ul>"
         return out
 
-def update_cb(box, value):
-    tool_checkboxes[box] = value
+def update_tool_state(toolname, value):
+    tool_active_states[toolname] = value
 
 def update_tool_description(tn, value):
     tool_descriptions[tn] = value
@@ -311,11 +311,11 @@ def ui():
             with gr.Accordion(label="Tools", open = False):
                 for tool in Tools:
                     with gr.Row():
-                        tool_checkboxes[tool.name]=False
+                        tool_active_states[tool.name]=False
                         if TOOL_DESCRIPTIONS.get(tool.name, False):
-                            tool_checkboxes[tool.name]=True
-                        cb = gr.Checkbox(label=tool.name, value=tool_checkboxes[tool.name], interactive=True)
-                        cb.change(lambda x, tn=tool.name: update_cb(tn, x), [cb])
+                            tool_active_states[tool.name]=True
+                        cb = gr.Checkbox(label=tool.name, value=tool_active_states[tool.name], interactive=True)
+                        cb.change(lambda x, tn=tool.name: update_tool_state(tn, x), [cb])
                         tool_descriptions[tool.name] = TOOL_DESCRIPTIONS.get(tool.name, tool.description)
                         textbox = gr.Textbox(
                             label="Tool description (as passed to the model)",
