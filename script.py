@@ -395,6 +395,11 @@ def ui():
         mainloop, inputs=mainloop_inputs, outputs=output
     )
 
+    for dir_input in directive_inputs:
+        dir_input.change(set_directives, inputs=directive_inputs, outputs=None)
+    human_prefix_input.change(set_prefixes, inputs=[human_prefix_input, assistant_prefix_input], outputs=None)
+    assistant_prefix_input.change(set_prefixes, inputs=[human_prefix_input, assistant_prefix_input], outputs=None)
+
     def cancel_agent():
         AgentOobaVars["main-objective"].done = True
         output.value = ""
