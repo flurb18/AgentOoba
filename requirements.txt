@@ -4,6 +4,5 @@ wikipedia
 wolframalpha
 chromadb
 dotenv
-json
 uuid
 InstructorEmbedding
