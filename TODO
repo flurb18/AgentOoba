@@ -1,4 +1,3 @@
-Sentence transformers + chromadb
 Better tool detection
 Manual intervention
 dependencies of tasks (don't start executing til we have output) + chaining output context
