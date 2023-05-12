@@ -137,7 +137,9 @@ class Objective:
         if tool_found:
             self.done = True
             if (AgentOobaVars["tools"][tool.name]["execute"]):
-                self.output = f"EXECUTING TOOL {tool.name} input={tool_input}"
+                output = f"I executed the tool \"{tool.name}\" with the input:{tool_input}\nThe tool returned these results:\n"
+                output += tool.run(tool_input);
+                self.output = output
             else:
                 self.output = f"TOOL FOUND {tool.name} input={tool_input}"
         else:
