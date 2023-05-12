@@ -65,12 +65,14 @@ from modules.text_generation import generate_reply
 
 # Tools can be (hopefully, not all tested) any from https://python.langchain.com/en/latest/modules/agents/tools/getting_started.html
 KNOWN_TOOLS = ["wikipedia", "searx-search", "requests_get", "requests_post"]
-# Customs tool descriptions, that seem to work better than the default ones. The keys here must match tool.name
-TOOL_DESCRIPTIONS = {
+
+# Define Custom tool descriptions here. The keys here must match tool.name
+CUSTOM_TOOL_DESCRIPTIONS_EXAMPLE = {
     "Wikipedia" : "A collection of articles on various topics. Used when the task at hand is researching or acquiring general surface-level information about any topic. Input is a topic; the tool will then save general information about the topic to memory.",
     "Searx Search" : "A URL search engine. Used when the task at hand is searching the internet for websites that mention a certain topic. Input is a search query; the tool will then save URLs for popular websites that reference the search query to memory.",
     "Wolfram Alpha" : "A multipuporse calculator and information search engine. Used for mathematical computations and looking up specific numeric information. Input is a query or directive to calculate an expression; the tool will then save the expression and the result of the evaluation of that expression to memory.\nExample: Input - 'derivative of x^2' Output - 'derivative of x^2 is 2x'"
 }
+CUSTOM_TOOL_DESCRIPTIONS = {}
 
 Tools = load_tools(
     KNOWN_TOOLS,
@@ -78,9 +80,6 @@ Tools = load_tools(
     top_k_results=TOP_K_WIKI,
     wolfram_alpha_appid=WOLFRAM_APP_ID
 )
-
-tool_active_states = {}
-tool_descriptions = {}
 
 OutputCSS = """
 <style>
@@ -182,9 +181,9 @@ class Objective:
         return [ item[2:].strip(" -*[]()") for item in (response.split("\n") if "\n" in response else [response]) ]
     
     def assess_tools(self):
-        for tool in Tools:
-            if tool_active_states[tool.name]:
-                tool_str = f"Tool name: {tool.name}\nTool description: {tool_descriptions[tool.name]}"
+        for tool_name in AgentOobaVars["tools"]:
+            if AgentOobaVars["tools"][tool_name]["active"]:
+                tool_str = f"Tool name: {tool_name}\nTool description: {AgentOobaVars['tools'][tool_name]['desc']}"
                 directive = AgentOobaVars["assess-tool-directive"].replace("_TOOL_", tool_str)
                 prompt = self.make_prompt(directive, True, False)
                 if 'yes' in ooba_call(prompt).strip().lower():
@@ -268,12 +267,23 @@ class Objective:
         out += "</ul>"
         return out
 
-def update_tool_state(toolname, value):
-    tool_active_states[toolname] = value
+
+def setup_tools():
+    for tool in Tools:
+        AgentOobaVars["tools"][tool.name] = {}
+        AgentOobaVars["tools"][tool.name]["active"] = False
+        if tool.name in CUSTOM_TOOL_DESCRIPTIONS:
+            AgentOobaVars["tools"][tool.name]["desc"] =  CUSTOM_TOOL_DESCRIPTIONS[tool.name]
+        else:
+            AgentOobaVars["tools"][tool.name]["desc"] = tool.description
+        AgentOobaVars["tools"][tool.name]["tool"] = tool
+    
+def update_tool_state(tool_name, value):
+    AgentOobaVars["tools"][tool_name]["active"] = value
 
 def update_tool_description(tn, value):
-    tool_descriptions[tn] = value
-
+    AgentOobaVars["tools"][tool_name]['desc'] = value
+    
 def ui():
     with gr.Column():
         with gr.Column():
@@ -309,20 +319,17 @@ def ui():
                 submit_button = gr.Button("Execute", variant="primary")
                 cancel_button = gr.Button("Cancel")
             with gr.Accordion(label="Tools", open = False):
-                for tool in Tools:
+                setup_tools()
+                for tool_name in AgentOobaVars["tools"]:
                     with gr.Row():
-                        tool_active_states[tool.name]=False
-                        if TOOL_DESCRIPTIONS.get(tool.name, False):
-                            tool_active_states[tool.name]=True
-                        cb = gr.Checkbox(label=tool.name, value=tool_active_states[tool.name], interactive=True)
-                        cb.change(lambda x, tn=tool.name: update_tool_state(tn, x), [cb])
-                        tool_descriptions[tool.name] = TOOL_DESCRIPTIONS.get(tool.name, tool.description)
+                        cb = gr.Checkbox(label=tool_name, value=False, interactive=True)
+                        cb.change(lambda x, tn=tool_name: update_tool_state(tn, x), [cb])
                         textbox = gr.Textbox(
                             label="Tool description (as passed to the model)",
                             interactive=True,
-                            value=tool_descriptions[tool.name]
+                            value=AgentOobaVars["tools"][tool_name]["desc"]
                         )
-                        textbox.change(lambda x, tn=tool.name: update_tool_description(tn, x), [textbox])
+                        textbox.change(lambda x, tn=tool_name: update_tool_description(tn, x), [textbox])
             with gr.Accordion(label="Prompting", open = False):
                 with gr.Row():
                     human_prefix_input = gr.Textbox(label="Human prefix", value = HUMAN_PREFIX)
@@ -450,7 +457,8 @@ AgentOobaVars = {
     "assess-tool-directive" : ASSESS_TOOL_DIRECTIVE,
     "use-tool-directive" : USE_TOOL_DIRECTIVE,
     "human-prefix" : HUMAN_PREFIX,
-    "assistant-prefix" : ASSISTANT_PREFIX
+    "assistant-prefix" : ASSISTANT_PREFIX,
+    "tools" : {}
 }
             
 def mainloop(ostr, r, max_t, c, expanded_context, aad, dod, sod, atd, utd, human_prefix, assistant_prefix):
