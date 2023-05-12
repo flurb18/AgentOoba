@@ -151,7 +151,7 @@ class Objective:
     def make_prompt(self, directive, objs, parent_tasks):
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
         directive = directive.replace("_TASK_", f"Objective {self.recursion_level}").strip()
-        objstr = f"The following is a list of objectives. Remember them for future reference.\nObjectives:\n{self.prompt_objective_context(parent_tasks)}\n\n" if objs else ""
+        objstr = f"Objectives:\n{self.prompt_objective_context(parent_tasks)}\n\n" if objs else ""
         return f"{AgentOobaVars['human-prefix']}\n{objstr}Instructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
 
     def assess_model_ability(self):
@@ -169,17 +169,18 @@ class Objective:
         directive = AgentOobaVars["split-objective-directive"].replace("_MAX_TASKS_", str(self.max_tasks))
         prompt = self.make_prompt(directive, True, True)
         response = ooba_call(prompt).strip()
-        possible_starts = ["\n1.","\n1","1.","1"]
-        for i in range(len(possible_starts)):
-            idx = i
-            list_pos = response.find(possible_starts[i])
-            if list_pos != -1:
+        task_list_regex = re.compile('((^|\n)[\d]+\.)(.*?)(?=([\d]+\..*)|($))', re.DOTALL)
+        match = task_list_regex.search(response)
+        task_list = []
+        while match:
+            g = match.groups()
+            task_list.append(g[2].strip())
+            if g[3]:
+                match = task_list_regex.search(g[3])
+            else:
                 break
-        if list_pos == -1:
-            return []
-        response = response[list_pos + len(possible_starts[idx])-1:]
-        return [ item[2:].strip(" -*[]()") for item in (response.split("\n") if "\n" in response else [response]) ]
-    
+        return task_list
+            
     def assess_tools(self):
         for tool_name in AgentOobaVars["tools"]:
             if AgentOobaVars["tools"][tool_name]["active"]:

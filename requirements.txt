@@ -3,7 +3,7 @@ typing
 wikipedia
 wolframalpha
 chromadb
-dotenv
+python-dotenv
 uuid
 requests
 InstructorEmbedding
