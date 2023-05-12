@@ -201,7 +201,7 @@ class Objective:
                     response = ooba_call(prompt).strip()
                     negative_responses = ["i cannot", "am unable"]
                     if not any([neg in response.lower() for neg in negative_responses]):
-                        return True, tool, response
+                        return True, AgentOobaVars["tools"][tool_name]["tool"], response
         return False, None, None
     
     def prompt_objective_context(self):
