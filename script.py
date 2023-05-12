@@ -354,7 +354,7 @@ def ui():
                     directive_defaults.append(gr.Textbox(visible=False, value = directive))
                 prompt_inputs = directive_inputs + [human_prefix_input, assistant_prefix_input]
                 prompt_defaults = directive_defaults + [human_prefix_def, assistant_prefix_def]
-                for dir_input in directive_inputs
+                # what was I doing
                 reset_prompts_button = gr.Button("Reset prompts to default")
                 with gr.Row():
                     export_prompts_button = gr.Button("Export prompts to JSON")
