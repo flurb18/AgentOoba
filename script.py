@@ -296,7 +296,8 @@ def update_tool_description(tn, value):
 def ui():
     with gr.Column():
         with gr.Column():
-            output = gr.HTML(label="Output", value="")
+            with gr.Accordion(label="Output"):
+                output = gr.HTML(label="Output", value="")
             user_input = gr.Textbox(label="Goal for AgentOoba")
             with gr.Row():
                 submit_button = gr.Button("Execute", variant="primary")
