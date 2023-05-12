@@ -34,5 +34,8 @@ There are a couple of tools already included for testing purposes. You can also 
 # Credits
 
 Entire open-source LLM community - what this movement is doing inspired me
+
 Originally source of inspiration: https://github.com/kroll-software/babyagi4all
+
 Oobabooga's web UI made this possible
+
