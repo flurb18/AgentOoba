@@ -5,4 +5,5 @@ wolframalpha
 chromadb
 dotenv
 uuid
+requests
 InstructorEmbedding
