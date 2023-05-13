@@ -27,9 +27,9 @@ The default prompts will be routinely updated as I explore effective prompting m
 
 # Tools
 
-AgentOoba will support [Langchain](https://python.langchain.com/en/latest/index.html) tools. All model prompting is set up, but the input that the model generates is not yet passed to the tool. I still need to fine-tune the prompts, set up the model output parsing, update the UI, and implement context chaining (which is how the model will be able to utilize the tools output).
+AgentOoba will support [Langchain](https://python.langchain.com/en/latest/index.html) tools. All model prompting is set up, but while the input that the model generates can be passed to the tool, the tools result is just printed out but not fed back to the model. I still need to fine-tune the prompts, set up the model output parsing, update the UI, and implement context chaining (which is how the model will be able to utilize the tools output).
 
-There are a couple of tools already included for testing purposes. You can also customize each tool's description as it is passed to the model. The tools are disabled in the UI by default; you can enable individual tools by clicking the check mark next to the tool name. The Agent will then evaluate if it can use the tool for each task.
+There are a couple of tools already included for testing purposes. You can also customize each tool's description as it is passed to the model. The tools are disabled in the UI by default; you can enable evaluation and execution of the tools individually by clicking the check marks next to the tool name. The Agent will then evaluate if it can use the tool for each task and if he thinks he can he will excute the tool only if allowed to.
 
 # Credits
 

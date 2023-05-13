@@ -139,7 +139,12 @@ class Objective:
         tool_found, tool, tool_input = self.assess_tools()
         if tool_found:
             self.done = True
-            self.output = f"TOOL FOUND {tool.name} input={tool_input}"
+            if (AgentOobaVars["tools"][tool.name]["execute"]):
+                output = f"I executed the tool \"{tool.name}\" with the input:{tool_input}\nThe tool returned these results:\n"
+                output += tool.run(tool_input);
+                self.output = output
+            else:
+                self.output = f"TOOL FOUND {tool.name} input={tool_input}"
         else:
             output_tasks = self.split_objective()
             self.tasks = [task for task in output_tasks if not AgentOobaVars["processed-task-storage"].task_exists(task)]
@@ -285,16 +290,17 @@ def setup_tools():
     for tool in Tools:
         AgentOobaVars["tools"][tool.name] = {}
         AgentOobaVars["tools"][tool.name]["active"] = False
+        AgentOobaVars["tools"][tool.name]["execute"] = False
         if tool.name in CUSTOM_TOOL_DESCRIPTIONS:
             AgentOobaVars["tools"][tool.name]["desc"] =  CUSTOM_TOOL_DESCRIPTIONS[tool.name]
         else:
             AgentOobaVars["tools"][tool.name]["desc"] = tool.description
         AgentOobaVars["tools"][tool.name]["tool"] = tool
     
-def update_tool_state(tool_name, value):
-    AgentOobaVars["tools"][tool_name]["active"] = value
+def update_tool_state(tool_name, statetype, value):
+    AgentOobaVars["tools"][tool_name][statetype] = value
 
-def update_tool_description(tn, value):
+def update_tool_description(tool_name, value):
     AgentOobaVars["tools"][tool_name]['desc'] = value
     
 def ui():
@@ -336,8 +342,10 @@ def ui():
                 setup_tools()
                 for tool_name in AgentOobaVars["tools"]:
                     with gr.Row():
-                        cb = gr.Checkbox(label=tool_name, value=False, interactive=True)
-                        cb.change(lambda x, tn=tool_name: update_tool_state(tn, x), [cb])
+                        cb_active = gr.Checkbox(label=tool_name, value=False, interactive=True)
+                        cb_active.change(lambda x, tn=tool_name, statetype="active" : update_tool_state(tn, statetype, x), [cb_active])
+                        cb_execute = gr.Checkbox(label="Execute", value=False, interactive=True)
+                        cb_execute.change(lambda x, tn=tool_name, statetype="execute": update_tool_state(tn, statetype, x), [cb_execute])
                         textbox = gr.Textbox(
                             label="Tool description (as passed to the model)",
                             interactive=True,
