@@ -108,11 +108,11 @@ def ooba_call(prompt):
             answer = a
         else:
             answer = a[0]
+    if AgentOobaVars["human-prefix"] in answer:
+        answer = answer[:answer.find(AgentOobaVars["human-prefix"])]
     if VERBOSE:
         print(f"-----------------------INPUT-----------------------\n{prompt}\n", file=sys.stderr)
         print(f"----------------------OUTPUT-----------------------\n{answer}\n", file=sys.stderr)
-    if AgentOobaVars["human-prefix"] in answer:
-        answer = answer[:answer.find(AgentOobaVars["human-prefix"])]
     return answer
 
 class Objective:
