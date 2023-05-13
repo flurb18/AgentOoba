@@ -126,7 +126,7 @@ class Objective:
         self.current_task_idx = 0
         self.output = ""
         self.context = "None"
-        self.context = self.generate_context()
+        self.context = ""
         if self.assess_model_ability():
             response = self.do_objective()
             negative_responses = ["i cannot", "am unable"]
@@ -156,7 +156,7 @@ class Objective:
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
         directive = directive.replace("_TASK_", f"Objective {self.recursion_level}").strip()
         objstr = f"Objectives:\n{self.prompt_objective_context()}\n\n" if include_objectives else ""
-        return f"{AgentOobaVars['human-prefix']}\n{objstr}Previous Observations:\n{self.context}\n\nInstructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
+        return f"{AgentOobaVars['human-prefix']}\n{AgentOobaVars['directives']['Primary directive']}\n\n{objstr}Instructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
 
     def assess_model_ability(self):
         directive = AgentOobaVars["directives"]["Assess ability directive"]
