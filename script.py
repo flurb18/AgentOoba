@@ -5,6 +5,7 @@ import gradio as gr
 import re
 import uuid
 import json
+from html import escape
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -262,9 +263,9 @@ class Objective:
                 self.parent.current_task_idx += 1
 
     def to_string(self, select):
-        out = f'OBJECTIVE: {self.objective}<ul class="oobaAgentOutput">'
+        out = f'OBJECTIVE: {escape(self.objective)}<ul class="oobaAgentOutput">'
         if self.output:
-            out += f'<li class="oobaAgentOutput">{self.output}</li>'
+            out += f'<li class="oobaAgentOutput">{escape(self.output)}</li>'
         else:
             for task in self.tasks:
                 if isinstance(task, str):
@@ -279,7 +280,7 @@ class Objective:
                         task_idx = task_it_parent.tasks.index(current_task_iterator)
                         current_task_iterator = task_it_parent
                     task_disp_class = "oobaAgentOutputThinking" if thinking and select else "oobaAgentOutput"
-                    out += f'<li class="{task_disp_class}">{task}</li>'
+                    out += f'<li class="{task_disp_class}">{escape(task)}</li>'
                 else:
                     out += f'<li class="oobaAgentOutput">{task.to_string(select)}</li>'
         out += "</ul>"
