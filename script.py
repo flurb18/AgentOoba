@@ -28,6 +28,7 @@ SPLIT_OBJECTIVE_DIRECTIVE = os.getenv("SPLIT_OBJECTIVE_DIRECTIVE")
 ASSESS_TOOL_DIRECTIVE = os.getenv("ASSESS_TOOL_DIRECTIVE")
 USE_TOOL_DIRECTIVE = os.getenv("USE_TOOL_DIRECTIVE")
 GENERATE_THOUGHTS_DIRECTIVE = os.getenv("GENERATE_THOUGHTS_DIRECTIVE")
+PRIMARY_DIRECTIVE = os.getenv("PRIMARY_DIRECTIVE")
 
 from langchain.callbacks.manager import CallbackManagerForLLMRun
 from langchain.llms.base import LLM
@@ -348,7 +349,7 @@ def ui():
                     assistant_prefix_def = gr.Textbox(visible=False, value = ASSISTANT_PREFIX)
                 directive_inputs = []
                 directive_defaults = []
-                set_directives(ASSESS_ABILITY_DIRECTIVE, DO_OBJECTIVE_DIRECTIVE, SPLIT_OBJECTIVE_DIRECTIVE,
+                set_directives(PRIMARY_DIRECTIVE, ASSESS_ABILITY_DIRECTIVE, DO_OBJECTIVE_DIRECTIVE, SPLIT_OBJECTIVE_DIRECTIVE,
                                ASSESS_TOOL_DIRECTIVE, USE_TOOL_DIRECTIVE, GENERATE_THOUGHTS_DIRECTIVE)
                 for directive_name, directive in AgentOobaVars["directives"].items():
                     directive_inputs.append(gr.TextArea(label=directive_name, value = directive))
@@ -413,12 +414,12 @@ def ui():
     )
     
     reset_event = reset_prompts_button.click(
-        lambda a,b,c,d,e,f,g,h: [a,b,c,d,e,f,g,h],
+        lambda a,b,c,d,e,f,g,h,i: [a,b,c,d,e,f,g,h,i],
         inputs =  prompt_defaults,
         outputs = prompt_inputs
     )
 
-    def make_prompt_template(aad, dod, sod, atd, utd, gen_thoughts, human_prefix, assistant_prefix):
+    def make_prompt_template():
         d = AgentOobaVars["directives"].copy()
         d["human-prefix"] = AgentOobaVars["human-prefix"]
         d["assistant-prefix"] = AgentOobaVars["assistant-prefix"]
@@ -432,6 +433,7 @@ def ui():
             return [p.value for p in prompt_inputs] + [human_prefix_input.value, assistant_prefix_input.value]
         d = json.loads(template)
         return [
+            d["Primary directive"],
             d["Assess ability directive"],
             d["Do objective directive"],
             d["Split objective directive"],
@@ -444,7 +446,7 @@ def ui():
             
     export_event = export_prompts_button.click(
         make_prompt_template,
-        inputs = prompt_inputs,
+        inputs = None,
         outputs = [exported_prompts]
     )
     
@@ -469,7 +471,8 @@ AgentOobaVars = {
     "assistant-prefix" : ASSISTANT_PREFIX
 }
 
-def set_directives(aad, dod, sod, atd, utd, gen_thoughts):
+def set_directives(m, aad, dod, sod, atd, utd, gen_thoughts):
+    AgentOobaVars["directives"]["Primary directive"] = m
     AgentOobaVars["directives"]["Assess ability directive"] = aad
     AgentOobaVars["directives"]["Do objective directive"] = dod
     AgentOobaVars["directives"]["Split objective directive"] = sod
