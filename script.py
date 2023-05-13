@@ -127,8 +127,8 @@ class Objective:
         self.parent_task_idx = task_idx
         self.current_task_idx = 0
         self.output = ""
-        self.context = "None"
-        self.context = ""
+        self.context = None
+        #self.context = self.generate_context()
         if self.assess_model_ability():
             response = self.do_objective()
             negative_responses = ["i cannot", "am unable"]
@@ -157,8 +157,9 @@ class Objective:
     def make_prompt(self, directive, include_objectives=True):
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
         directive = directive.replace("_TASK_", f"Objective {self.recursion_level}").strip()
-        objstr = f"Objectives:\n{self.prompt_objective_context()}\n\n" if include_objectives else ""
-        return f"{AgentOobaVars['human-prefix']}\n{AgentOobaVars['directives']['Primary directive']}\n\n{objstr}Instructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
+        objstr = f"Remember these objectives:\n{self.prompt_objective_context()}\n\n" if include_objectives else ""
+        constr = f"Context:\n{self.context}\n\n" if self.context else ""
+        return f"{AgentOobaVars['human-prefix']}\n{AgentOobaVars['directives']['Primary directive']}\n\n{objstr}{constr}Instructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
 
     def assess_model_ability(self):
         directive = AgentOobaVars["directives"]["Assess ability directive"]
@@ -180,7 +181,7 @@ class Objective:
         directive = AgentOobaVars["directives"]["Split objective directive"].replace("_MAX_TASKS_", str(self.max_tasks))
         prompt = self.make_prompt(directive, include_objectives=True)
         response = ooba_call(prompt).strip()
-        task_list_regex = re.compile('((^|\n)[\d]+\.)(.*?)(?=([\d]+\..*)|($))', re.DOTALL)
+        task_list_regex = re.compile('((^|\n)[\d]+\.)(.*?)(?=(\n[\d]+\..*)|($))', re.DOTALL)
         match = task_list_regex.search(response)
         task_list = []
         while match:
