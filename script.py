@@ -128,8 +128,8 @@ class Objective:
         self.parent_task_idx = task_idx
         self.current_task_idx = 0
         self.output = ""
-        self.context = None
-        #self.context = self.generate_context()
+        self.context = {}
+        self.generate_context()
         if self.assess_model_ability():
             response = self.do_objective()
             negative_responses = ["i cannot", "am unable"]
@@ -160,16 +160,28 @@ class Objective:
             else:
                 AgentOobaVars["processed-task-storage"].add_tasks(self.tasks, [uuid.uuid4().hex for task in self.tasks])
 
-    def make_prompt(self, directive, include_objectives=True):
+    def make_prompt(self,
+                    directive,
+                    include_objectives=True,
+                    context_resources=False,
+                    context_abilities=False
+                    ):
+        constr=""
+        if any([context_resources, context_abilities]):
+            constr = "Context:\n"
+            if context_resources and "resources" in self.context:
+                constr += f"Resources needed for _TASK_:\n{self.context['resources']}\n"
+            if context_abilities and "abilities" in self.context:
+                constr += f"Abilities needed for _TASK_:\n{self.context['abilities']}\n"
+        directive = f"{constr}\nInstructions:\n{directive}"
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])[:CTX_MAX]
         directive = directive.replace("_TASK_", f"Objective {self.recursion_level}").strip()
         objstr = f"Remember these objectives:\n{self.prompt_objective_context()}\n\n" if include_objectives else ""
-        constr = f"Context:\n{self.context}\n\n" if self.context else ""
-        return f"{AgentOobaVars['human-prefix']}\n{AgentOobaVars['directives']['Primary directive']}\n\n{objstr}{constr}Instructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
+        return f"{AgentOobaVars['human-prefix']}\n{AgentOobaVars['directives']['Primary directive']}\n\n{objstr}{directive}\n\n{AgentOobaVars['assistant-prefix']}"
 
     def assess_model_ability(self):
         directive = AgentOobaVars["directives"]["Assess ability directive"]
-        prompt = self.make_prompt(directive, include_objectives=True)
+        prompt = self.make_prompt(directive, include_objectives=True, context_abilities=True, context_resources=True)
         response = ooba_call(prompt).strip()
         return 'yes' in response.lower()
 
@@ -181,7 +193,13 @@ class Objective:
     def generate_context(self):
         directive = AgentOobaVars["directives"]["Generate thoughts directive"]
         response = ooba_call(self.make_prompt(directive, include_objectives=True)).strip()
-        return response
+        context_regex = re.compile('Resources: (.+)\nAbilities: (.+)',re.DOTALL)
+        match = context_regex.search(response)
+        if not match:
+            return
+        g = match.groups()
+        self.context["resources"]=g[0]
+        self.context["abilities"]=g[1]
     
     def split_objective(self):
         directive = AgentOobaVars["directives"]["Split objective directive"].replace("_MAX_TASKS_", str(self.max_tasks))
@@ -204,7 +222,7 @@ class Objective:
             if AgentOobaVars["tools"][tool_name]["active"]:
                 tool_str = f"Tool name: {tool_name}\nTool description: {AgentOobaVars['tools'][tool_name]['desc']}"
                 directive = AgentOobaVars["directives"]["Assess tool directive"].replace("_TOOL_", tool_str)
-                prompt = self.make_prompt(directive, include_objectives=True)
+                prompt = self.make_prompt(directive, include_objectives=True, context_resources=True)
                 if 'yes' in ooba_call(prompt).strip().lower():
                     directive = AgentOobaVars["directives"]["Use tool directive"].replace("_TOOL_", tool_str)
                     prompt = self.make_prompt(directive, include_objectives=True)
