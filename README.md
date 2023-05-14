@@ -1,4 +1,4 @@
-# AgentOoba v0.1
+# AgentOoba v0.2
 An autonomous AI agent extension for Oobabooga's web ui
 
 [Screenshot](https://imgur.com/a/uapv6jd), [Sample Output](https://pastebin.com/Mp5JHEUq)
@@ -14,7 +14,7 @@ Install https://github.com/oobabooga/text-generation-webui
 
 # Launching
 1. Launch Oobabooga with the option `--extensions AgentOoba`. You can do this by editing your launch script; the line that says `python server.py (additional arguments)` should be changed to `python server.py --extensions AgentOoba (additional arguments)`. You can also just launch it normally and go to the extensions tab to enable AgentOoba, though you'll have to do this at each launch.
-2. Load a model - I used TheBloke/vicuna-13B-1.1-GPTQ-4bit-128g for all tests / designing purposes, so the other models / models of other types are untested and might not give as good results.
+2. Load a model - I used TheBloke/vicuna-13B-1.1-GPTQ-4bit-128g and other models in the vicuna series for all tests / designing purposes, so other models / models of other types are untested and might not give as good results.
 3. Go to the main text generation page and scroll down to see the UI.
 
 # Info
@@ -31,7 +31,7 @@ The default prompts will be routinely updated as I explore effective prompting m
 
 # Tools
 
-AgentOoba will support [Langchain](https://python.langchain.com/en/latest/index.html) tools. All model prompting is set up, but while the input that the model generates can be passed to the tool, the result is just printed out, not fed back to the model. I still need to fine-tune the prompts, set up the model output parsing, update the UI, and implement context chaining (which is how the model will be able to utilize the tools output).
+AgentOoba supports [Langchain](https://python.langchain.com/en/latest/index.html) tools. All model prompting is set up, but while the input that the model generates can be passed to the tool, the result is just printed out, not fed back to the model. I still need to fine-tune the prompts, set up the model output parsing, update the UI, and implement context chaining (which is how the model will be able to utilize the tools output).
 
 There are a couple of tools already included for testing purposes. You can also customize each tool's description as it is passed to the model. The tools are disabled in the UI by default; you can enable evaluation and execution of the tools individually by clicking the check marks next to the tool name. The Agent will then evaluate if it can use the tool for each task and will execute the tool only if allowed to.
 
