@@ -1,4 +1,5 @@
 from extensions.AgentOoba.script import AgentOobaVars, ooba_call
+from modules.text_generation import get_encoded_length
 import re
 from html import escape
 import uuid
@@ -13,26 +14,10 @@ class Objective:
         self.done = (recursion_level == AgentOobaVars["recursion-max"])
         self.parent_task_idx = task_idx
         self.current_task_idx = 0
-        self.output = ""
+        self.output = []
         self.context = {}
         self.generate_context()
-        if self.assess_model_ability():
-            response = self.do_objective()
-            negative_responses = ["i cannot", "i am unable", "i'm unable"]
-            if not any([neg in response.lower() for neg in negative_responses]):
-                self.done = True
-                self.output= f"MODEL OUTPUT {response}"
-                return
-        tool_found, tool, tool_input = self.assess_tools()
-        if tool_found:
-            self.done = True
-            if (AgentOobaVars["tools"][tool.name]["execute"]):
-                output = f"I executed the tool \"{tool.name}\" with the input:{tool_input}\nThe tool returned these results:\n"
-                output += tool.run(tool_input);
-                self.output = output
-            else:
-                self.output = f"TOOL FOUND {tool.name} input={tool_input}"
-        else:
+        if not self.done:
             output_tasks = self.split_objective()
             self.tasks = [task for task in output_tasks if not AgentOobaVars["processed-task-storage"].task_exists(task)]
             if AgentOobaVars["verbose"] and len(self.tasks) < len(output_tasks):
@@ -49,23 +34,32 @@ class Objective:
     def make_prompt(self,
                     directive,
                     include_objectives=True,
+                    context_objectives=False,
                     context_resources=False,
                     context_abilities=False
                     ):
         constr=""
-        if any([context_resources, context_abilities]):
+        context_resources = context_resources and "resources-needed" in self.context
+        context_abilities = context_abilities and "abilities-needed" in self.context
+        context_objectives = context_objectives and self.parent and (self.parent_task_idx > 0)
+        if any([context_resources, context_abilities, context_objectives]):
             constr = "Context:\n"
-            if context_resources and "resources-needed" in self.context:
+            if context_resources:
                 constr += f"Resources needed for completing _TASK_:\n{self.context['resources-needed']}\n"
                 constr += f"Resources available:\n{self.context['resources-available'] if 'resources-available' in self.context else 'None'}\n"
-            if context_abilities and "abilities-needed" in self.context:
+            if context_abilities:
                 constr += f"Abilities needed for completing _TASK_:\n{self.context['abilities-needed']}\n"
                 constr += f"Abilities available:\n{self.context['abilities-available'] if 'abilities-available' in self.context else 'None'}\n"
+            if context_objectives:
+                constr += f"The following is a list of objectives that have already been completed:\n"
+                constr += "\n".join([f"Objective {self.recursion_level-1}, Task {i+1}: {self.parent.tasks[i].objective}" for i in range(self.parent_task_idx)])
+                constr += "\n"
+            constr += "\n"
         directive = "\n".join([line.strip() for line in (directive.split("\n") if "\n" in directive else [directive])])
         directive = directive.replace("_TASK_", f"Objective {self.recursion_level}").strip()
         constr = constr.replace("_TASK_", f"Objective {self.recursion_level}")
         objstr = f"Remember these objectives:\n{self.prompt_objective_context()}\n\n" if include_objectives else ""
-        return f"{AgentOobaVars['human-prefix']}\n{AgentOobaVars['directives']['Primary directive']}\n{objstr}{constr}\nInstructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
+        return f"{AgentOobaVars['human-prefix']}\n{AgentOobaVars['directives']['Primary directive']}\n\n{objstr}{constr}Instructions:\n{directive}\n\n{AgentOobaVars['assistant-prefix']}"
 
     def assess_model_ability(self):
         directive = AgentOobaVars["directives"]["Assess ability directive"]
@@ -75,7 +69,7 @@ class Objective:
 
     def do_objective(self):
         directive = AgentOobaVars["directives"]["Do objective directive"]
-        response = ooba_call(self.make_prompt(directive, include_objectives=True, context_resources=True)).strip()
+        response = ooba_call(self.make_prompt(directive, include_objectives=True, context_abilities=True, context_resources=True)).strip()
         return response
 
     def generate_context(self):
@@ -98,7 +92,7 @@ class Objective:
     
     def split_objective(self):
         directive = AgentOobaVars["directives"]["Split objective directive"].replace("_MAX_TASKS_", str(AgentOobaVars["max-tasks"]))
-        prompt = self.make_prompt(directive, include_objectives=True)
+        prompt = self.make_prompt(directive, include_objectives=True, context_objectives=True)
         response = ooba_call(prompt).strip()
         task_list_regex = re.compile('((^|\n)[\d]+\.)(.*?)(?=(\n[\d]+\..*)|($))', re.DOTALL)
         match = task_list_regex.search(response)
@@ -117,26 +111,24 @@ class Objective:
             if AgentOobaVars["tools"][tool_name]["active"]:
                 tool_str = f"Tool name: {tool_name}\nTool description: {AgentOobaVars['tools'][tool_name]['desc']}"
                 directive = AgentOobaVars["directives"]["Assess tool directive"].replace("_TOOL_NAME_", tool_name)
-                self.context["resources-available"]=f"You have the following tool available to you:\n{tool_str}"
-                prompt = self.make_prompt(directive, include_objectives=True, context_resources=True, context_abilities=True)
-                self.context["resources-available"]="None"
+                old = self.context["resources-available"]
+                self.add_resource(f"You have the following tool available to you:\n{tool_str}")
+                prompt = self.make_prompt(directive, include_objectives=True, context_resources=True)
                 if 'yes' in ooba_call(prompt).strip().lower():
                     directive = AgentOobaVars["directives"]["Use tool directive"].replace("_TOOL_NAME_", tool_name)
-                    prompt = self.make_prompt(directive, include_objectives=True)
+                    prompt = self.make_prompt(directive, include_objectives=True, context_resources=True)
                     response = ooba_call(prompt).strip()
                     negative_responses = ["i cannot", "am unable"]
                     if not any([neg in response.lower() for neg in negative_responses]):
+                        self.context["resources-available"]=old
                         return True, AgentOobaVars["tools"][tool_name]["tool"], response
+                self.context["resources-available"]=old
         return False, None, None
     
     def prompt_objective_context(self):
         reverse_context = []
         p_it = self
         r = self.recursion_level
-        #if include_parent_tasks and self.parent:
-        #    task_list_str = "\n".join([(task if isinstance(task, str) else task.objective) for task in self.parent.tasks])
-        #    reverse_context.append(f"The following is a list of tasks that have already been processed:\n{task_list_str}")
-        #reverse_context.append(f"Objective {r} is the current task we are working on.")
         while p_it.parent:
             child = p_it
             p_it = p_it.parent
@@ -150,11 +142,45 @@ class Objective:
         reverse_context.append(f"Objective 1 is: {p_it.objective}")
         reverse_context.reverse()
         return "\n".join(reverse_context)
-    
+
+    def add_resource(self, resource):
+        if get_encoded_length(resource) > (AgentOobaVars["max-context"] / 4):
+            directive = AgentOobaVars["directives"]["Summarize directive"].replace("_TEXT_", resource)
+            prompt = self.make_prompt(directive, include_objectives=False)
+            resource = ooba_call(prompt)
+        if not "resources-available" in self.context or self.context["resources-available"] == "None":
+            self.context["resources-available"] = resource
+        else:
+            self.context["resources-available"] += f"\n{resource}"
+
+    def try_objective(self):
+        tool_found, tool, tool_input = self.assess_tools()
+        if tool_found:
+            if (AgentOobaVars["tools"][tool.name]["execute"]):
+                used_tool_str = f"TOOL USED: \"{tool.name}\"\nINPUT: \"{tool_input}\"\nOUTPUT: \"{tool.run(tool_input)}\""
+                self.output.append(used_tool_str)
+                p_it = self.parent
+                while p_it:
+                    p_it.add_resource(used_tool_str)
+                    p_it = p_it.parent
+            else:
+                self.output.append(f"TOOL FOUND: \"{tool.name}\"\nINPUT: \"{tool_input}\"")
+        if self.assess_model_ability():
+            response = self.do_objective()
+            negative_responses = ["i cannot", "i am unable", "i'm unable"]
+            if not any([neg in response.lower() for neg in negative_responses]):
+                self.output.append(f"MODEL OUTPUT {response}")
+                p_it = self.parent
+                while p_it:
+                    p_it.add_resource(response)
+                    p_it = p_it.parent
+
     def process_current_task(self):
         if self.current_task_idx == len(self.tasks):
             self.current_task_idx = 0
-            self.done = all([(isinstance(task, str) or task.done) for task in self.tasks])
+            if all([(isinstance(task, str) or task.done) for task in self.tasks]):
+                self.try_objective()
+                self.done = True
         if not self.done:
             current_task = self.tasks[self.current_task_idx]
             if isinstance(current_task, str):
@@ -176,25 +202,24 @@ class Objective:
                 self.parent.current_task_idx += 1
 
     def to_string(self, select):
-        out = f'OBJECTIVE: {escape(self.objective)}<ul class="oobaAgentOutput">'
-        if self.output:
-            out += f'<li class="oobaAgentOutput">{escape(self.output)}</li>'
-        else:
-            for task in self.tasks:
-                if isinstance(task, str):
-                    thinking = False
-                    current_task_iterator = self
-                    task_idx = current_task_iterator.tasks.index(task)
-                    while (current_task_iterator.current_task_idx == task_idx):
-                        if not current_task_iterator.parent:
-                            thinking = True
-                            break;
-                        task_it_parent = current_task_iterator.parent
-                        task_idx = task_it_parent.tasks.index(current_task_iterator)
-                        current_task_iterator = task_it_parent
-                    task_disp_class = "oobaAgentOutputThinking" if thinking and select else "oobaAgentOutput"
-                    out += f'<li class="{task_disp_class}">{escape(task)}</li>'
-                else:
-                    out += f'<li class="oobaAgentOutput">{task.to_string(select)}</li>'
-        out += "</ul>"
-        return out
+        html_string = f'OBJECTIVE: {escape(self.objective)}<ul class="oobaAgentOutput">'
+        for task in self.tasks:
+            if isinstance(task, str):
+                thinking = False
+                current_task_iterator = self
+                task_idx = current_task_iterator.tasks.index(task)
+                while (current_task_iterator.current_task_idx == task_idx):
+                    if not current_task_iterator.parent:
+                        thinking = True
+                        break
+                    task_it_parent = current_task_iterator.parent
+                    task_idx = task_it_parent.tasks.index(current_task_iterator)
+                    current_task_iterator = task_it_parent
+                task_disp_class = "oobaAgentOutputThinking" if thinking and select else "oobaAgentOutput"
+                html_string += f'<li class="{task_disp_class}">{escape(task)}</li>'
+            else:
+                html_string += f'<li class="oobaAgentOutput">{task.to_string(select)}</li>'
+        for out in self.output:
+            html_string += f'<li class="oobaAgentOutputResource">{escape(out)}</li>'
+        html_string += "</ul>"
+        return html_string

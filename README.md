@@ -1,7 +1,9 @@
-# AgentOoba v0.2
+# AgentOoba v0.3
 An autonomous AI agent extension for Oobabooga's web ui
 
-[Screenshot](https://imgur.com/a/uapv6jd), [Sample Output](https://pastebin.com/Mp5JHEUq)
+[Sample Output](https://pastebin.com/0shy8L3d)
+
+Note: This project is still in its infancy. Right now the agent is capable of using tools and using the model's built-in capabilities to complete tasks, but it isn't great at it. It needs more context, a vague problem that I am continuously working on.
 
 # Prerequisites
 Install https://github.com/oobabooga/text-generation-webui
@@ -14,7 +16,7 @@ Install https://github.com/oobabooga/text-generation-webui
 
 # Launching
 1. Launch Oobabooga with the option `--extensions AgentOoba`. You can do this by editing your launch script; the line that says `python server.py (additional arguments)` should be changed to `python server.py --extensions AgentOoba (additional arguments)`. You can also just launch it normally and go to the extensions tab to enable AgentOoba, though you'll have to do this at each launch.
-2. Load a model - I used TheBloke/vicuna-13B-1.1-GPTQ-4bit-128g and other models in the vicuna series for all tests / designing purposes, so other models / models of other types are untested and might not give as good results.
+2. Load a model - The agent is designed to be flexible for model type, but you will have to set the human and assistant prefixes according to your model type in the Prompting section of the UI. Right now these are set for the Wizard series of model.
 3. Go to the main text generation page and scroll down to see the UI.
 
 # Info
@@ -31,7 +33,7 @@ The default prompts will be routinely updated as I explore effective prompting m
 
 # Tools
 
-AgentOoba supports [Langchain](https://python.langchain.com/en/latest/index.html) tools. All model prompting is set up, but while the input that the model generates can be passed to the tool, the result is just printed out, not fed back to the model. I still need to fine-tune the prompts, set up the model output parsing, update the UI, and implement context chaining (which is how the model will be able to utilize the tools output).
+AgentOoba supports [Langchain](https://python.langchain.com/en/latest/index.html) tools. It will try to use the tool's output in future tasks as well. This is still a work in progress.
 
 There are a couple of tools already included for testing purposes. You can also customize each tool's description as it is passed to the model. The tools are disabled in the UI by default; you can enable evaluation and execution of the tools individually by clicking the check marks next to the tool name. The Agent will then evaluate if it can use the tool for each task and will execute the tool only if allowed to.
 
