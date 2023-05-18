@@ -5,6 +5,8 @@ An autonomous AI agent extension for Oobabooga's web ui
 
 Note: This project is still in its infancy. Right now the agent is capable of using tools and using the model's built-in capabilities to complete tasks, but it isn't great at it. It needs more context, a vague problem that I am continuously working on.
 
+The latest update includes a change to how the flow of tasks is handled. Before, the agent would attempt to complete the task using tools as soon as it encountered it; now, it waits for child tasks to finish. What this means is you likely have to wait until the plan is fully expanded before it will start attempting objectives.
+
 # Prerequisites
 Install https://github.com/oobabooga/text-generation-webui
 
