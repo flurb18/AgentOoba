@@ -35,6 +35,7 @@ AgentOobaVars = {
     "waiting-input" : False,
     "recursion-max" : RECURSION_DEPTH_DEFAULT,
     "max-tasks" : MAX_TASKS_DEFAULT,
+    "max-summaries" : 5,
     "expanded-context" : EXPANDED_CONTEXT_DEFAULT,
     "chroma-cutoff" : DISTANCE_CUTOFF_DEFAULT,
     "processed-task-storage" : None,
@@ -204,7 +205,7 @@ def ui():
             with gr.Column():
                 recursion_level_slider = gr.Slider(
                     label="Recursion Depth",
-                    minimum=2,
+                    minimum=1,
                     maximum=7,
                     step=1,
                     value=RECURSION_DEPTH_DEFAULT,
@@ -225,7 +226,7 @@ def ui():
                     value=MAX_TASKS_DEFAULT,
                     interactive=True
                 )
-                expanded_context_toggle = gr.Checkbox(label="Expanded Context (runs out of memroy at high recursion)", value = EXPANDED_CONTEXT_DEFAULT)
+                expanded_context_toggle = gr.Checkbox(label="Expanded Context (runs out of memory at high recursion)", value = EXPANDED_CONTEXT_DEFAULT)
         with gr.Accordion(label="Tools", open = False):
             setup_tools()
             for tool_name in AgentOobaVars["tools"]:

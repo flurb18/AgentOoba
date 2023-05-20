@@ -5,6 +5,13 @@ from html import escape
 import uuid
 import sys
 
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size = AgentOobaVars["max-context"]/4,
+    chunk_overlap  = AgentOobaVars["max-context"]/20,
+    length_function = get_encoded_length
+)
+
 class Objective:
     def __init__(self, objective, task_idx, recursion_level, parent=None):
         self.objective = objective
@@ -112,7 +119,7 @@ class Objective:
                 tool_str = f"Tool name: {tool_name}\nTool description: {AgentOobaVars['tools'][tool_name]['desc']}"
                 directive = AgentOobaVars["directives"]["Assess tool directive"].replace("_TOOL_NAME_", tool_name)
                 old = self.context["resources-available"]
-                self.add_resource(f"You have the following tool available to you:\n{tool_str}")
+                self.add_resource_no_summary(f"You have the following tool available to you:\n{tool_str}")
                 prompt = self.make_prompt(directive, include_objectives=True, context_resources=True)
                 if 'yes' in ooba_call(prompt).strip().lower():
                     directive = AgentOobaVars["directives"]["Use tool directive"].replace("_TOOL_NAME_", tool_name)
@@ -144,10 +151,25 @@ class Objective:
         return "\n".join(reverse_context)
 
     def add_resource(self, resource):
-        if get_encoded_length(resource) > (AgentOobaVars["max-context"] / 4):
-            directive = AgentOobaVars["directives"]["Summarize directive"].replace("_TEXT_", resource)
-            prompt = self.make_prompt(directive, include_objectives=False)
-            resource = ooba_call(prompt)
+        i = 0
+        while get_encoded_length(resource) > (AgentOobaVars["max-context"] / 4) and i < AgentOobaVars["max-summaries"]:
+            i += 1
+            docs = text_splitter.create_documents([resource])
+            summaries = []
+            for doc in docs:
+                directive = AgentOobaVars["directives"]["Summarize directive"].replace("_TEXT_", doc)
+                prompt = self.make_prompt(directive, include_objectives=False)
+                summaries.append(ooba_call(prompt).strip())
+            resource = "\n\n".join(summaries)
+        final_length = get_encoded_length(resource)
+        if final_length < AgentOobaVars["max-context"]:
+            if final_length > (AgentOobaVars["max-context"]/4):
+                directive = AgentOobaVars["directives"]["Summarize directive"].replace("_TEXT_", resource)
+                prompt = self.make_prompt(directive, include_objectives=False)
+                resource = ooba_call(prompt).strip()
+            self.add_resource_no_summary(resource)
+
+    def add_resource_no_summary(self, resource):
         if not "resources-available" in self.context or self.context["resources-available"] == "None":
             self.context["resources-available"] = resource
         else:
@@ -159,10 +181,8 @@ class Objective:
             if (AgentOobaVars["tools"][tool.name]["execute"]):
                 used_tool_str = f"TOOL USED: \"{tool.name}\"\nINPUT: \"{tool_input}\"\nOUTPUT: \"{tool.run(tool_input)}\""
                 self.output.append(used_tool_str)
-                p_it = self.parent
-                while p_it:
-                    p_it.add_resource(used_tool_str)
-                    p_it = p_it.parent
+                if self.parent:
+                    self.parent.add_resource(used_tool_str)
             else:
                 self.output.append(f"TOOL FOUND: \"{tool.name}\"\nINPUT: \"{tool_input}\"")
         if self.assess_model_ability():
@@ -170,10 +190,8 @@ class Objective:
             negative_responses = ["i cannot", "i am unable", "i'm unable"]
             if not any([neg in response.lower() for neg in negative_responses]):
                 self.output.append(f"MODEL OUTPUT {response}")
-                p_it = self.parent
-                while p_it:
-                    p_it.add_resource(response)
-                    p_it = p_it.parent
+                if self.parent:
+                    self.parent.add_resource(response)
 
     def process_current_task(self):
         if self.current_task_idx == len(self.tasks):
@@ -204,21 +222,20 @@ class Objective:
     def to_string(self, select):
         html_string = f'OBJECTIVE: {escape(self.objective)}<ul class="oobaAgentOutput">'
         for task in self.tasks:
+            thinking = False
+            p_it = self
+            task_idx = p_it.tasks.index(task) if isinstance(task, str) else task.parent_task_idx
+            while ((p_it.current_task_idx % len(p_it.tasks)) == task_idx):
+                if not p_it.parent:
+                    thinking = True
+                    break
+                task_idx = p_it.parent_task_idx
+                p_it = p_it.parent
+            task_disp_class = "oobaAgentOutputThinking" if thinking and select else "oobaAgentOutput"
             if isinstance(task, str):
-                thinking = False
-                current_task_iterator = self
-                task_idx = current_task_iterator.tasks.index(task)
-                while (current_task_iterator.current_task_idx == task_idx):
-                    if not current_task_iterator.parent:
-                        thinking = True
-                        break
-                    task_it_parent = current_task_iterator.parent
-                    task_idx = task_it_parent.tasks.index(current_task_iterator)
-                    current_task_iterator = task_it_parent
-                task_disp_class = "oobaAgentOutputThinking" if thinking and select else "oobaAgentOutput"
                 html_string += f'<li class="{task_disp_class}">{escape(task)}</li>'
             else:
-                html_string += f'<li class="oobaAgentOutput">{task.to_string(select)}</li>'
+                html_string += f'<li class="{task_disp_class}">{task.to_string(select)}</li>'
         for out in self.output:
             html_string += f'<li class="oobaAgentOutputResource">{escape(out)}</li>'
         html_string += "</ul>"
