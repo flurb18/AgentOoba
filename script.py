@@ -18,9 +18,6 @@ from modules.text_generation import generate_reply
 from modules.utils import gradio
 from modules.ui import gather_interface_values
 
-from extensions.AgentOoba.objective import Objective
-
-
 load_dotenv()
 
 CTX_MAX = int(os.getenv("CTX_MAX"))
@@ -94,6 +91,8 @@ def ooba_call(prompt):
         print(f"-----------------------INPUT-----------------------\n{prompt}\n", file=sys.stderr)
         print(f"----------------------OUTPUT-----------------------\n{answer}\n", file=sys.stderr)
     return answer
+
+from extensions.AgentOoba.objective import Objective
 
 class ChromaTaskStorage:
     def __init__(self):
