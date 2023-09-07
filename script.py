@@ -66,7 +66,7 @@ from modules.text_generation import generate_reply
 
 def ooba_call(prompt):
     stops = [AgentOobaVars["human-prefix"],"</s>"]
-    generator = generate_reply(prompt, shared.persistent_interface_state, stopping_strings=stops)
+    generator = generate_reply(prompt, shared.gradio['interface_state'], stopping_strings=stops)
     answer = ''
     for a in generator:
         if isinstance(a, str):
