@@ -5,6 +5,22 @@ import gradio as gr
 import json
 from dotenv import load_dotenv
 
+import chromadb
+from chromadb.config import Settings
+
+from langchain.callbacks.manager import CallbackManagerForLLMRun
+from langchain.llms.base import LLM
+from langchain.agents import load_tools
+from langchain.tools import Tool
+
+from modules import chat, shared
+from modules.text_generation import generate_reply
+from modules.utils import gradio
+from modules.ui import gather_interface_values
+
+from extensions.AgentOoba.objective import Objective
+
+
 load_dotenv()
 
 CTX_MAX = int(os.getenv("CTX_MAX"))
@@ -62,10 +78,6 @@ params = {
 
 persistent_state = {}
 
-import modules
-from modules import chat, shared
-from modules.text_generation import generate_reply
-
 def ooba_call(prompt):
     stops = [AgentOobaVars["human-prefix"], '</s>']
     generator = generate_reply(prompt, persistent_state, stopping_strings=stops)
@@ -82,9 +94,6 @@ def ooba_call(prompt):
         print(f"-----------------------INPUT-----------------------\n{prompt}\n", file=sys.stderr)
         print(f"----------------------OUTPUT-----------------------\n{answer}\n", file=sys.stderr)
     return answer
-
-import chromadb
-from chromadb.config import Settings
 
 class ChromaTaskStorage:
     def __init__(self):
@@ -105,11 +114,6 @@ class ChromaTaskStorage:
         if len(results["distances"][0]) == 0:
             return False
         return results["distances"][0][0] < AgentOobaVars["chroma-cutoff"]
-
-from langchain.callbacks.manager import CallbackManagerForLLMRun
-from langchain.llms.base import LLM
-from langchain.agents import load_tools
-from langchain.tools import Tool
 
 # Tools can be (hopefully, not all tested) any from https://python.langchain.com/en/latest/modules/agents/tools/getting_started.html
 KNOWN_TOOLS = ["wikipedia", "searx-search", "requests_get", "requests_post"]
@@ -176,11 +180,8 @@ def gather_agentooba_parameters(
     AgentOobaVars["directives"]["Summarize directive"] = summarize
     AgentOobaVars["human-prefix"] = h_prefix
     AgentOobaVars["assistant-prefix"] = a_prefix
-    for key in shared.input_elements:
-        persistent_state[key] = shared.gradio[key]
+    persistent_state = gather_interface_values(gradio(shared.input_elements))
     persistent_state['custom_stopping_strings'] = ''
-
-from extensions.AgentOoba.objective import Objective
 
 def mainloop(ostr):
     AgentOobaVars["processed-task-storage"] = ChromaTaskStorage()
