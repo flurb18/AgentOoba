@@ -207,6 +207,7 @@ class Objective:
                     current_task,
                     self.current_task_idx,
                     self.recursion_level + 1,
+                    self.state,
                     parent=self
                 )
                 self.current_task_idx += 1
