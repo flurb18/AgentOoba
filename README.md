@@ -19,7 +19,18 @@ Install https://github.com/oobabooga/text-generation-webui
 # Launching
 1. Launch Oobabooga with the option `--extensions AgentOoba`. You can do this by editing your launch script; the line that says `python server.py (additional arguments)` should be changed to `python server.py --extensions AgentOoba (additional arguments)`. You can also just launch it normally and go to the extensions tab to enable AgentOoba, though you'll have to do this at each launch.
 2. Load a model - The agent is designed to be flexible for model type, but you will have to set the human and assistant prefixes according to your model type in the Prompting section of the UI. Right now these are set for the Wizard series of model.
-3. Go to the main text generation page and scroll down to see the UI.
+3. Click on the AgentOoba tab at the top of the page to see the UI.
+
+Or...
+
+# Docker
+If you are using Docker:
+1. Use the provided Dockerfile to build an image by running `docker build . text-generation-webui-agentooba:latest` inside this directory.
+2. Edit the provided `docker-compose.yml` to your liking.
+3. Run `docker compose up -d` inside the directory to start the image.
+4. If you didn't edit the port mapping in `docker-compose.yml`, visit http://localhost:7860 in your browser to see the main UI page, and click on the AgentOoba tab at the top.
+
+and that's it!
 
 # Info
 
