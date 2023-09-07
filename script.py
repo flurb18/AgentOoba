@@ -16,6 +16,7 @@ from langchain.tools import Tool
 from modules import chat, shared
 from modules.text_generation import generate_reply
 from modules.ui import gather_interface_values, list_interface_input_elements
+from modules.utils import gradio
 
 load_dotenv()
 
@@ -72,11 +73,11 @@ params = {
     "is_tab" : True
 }
 
-persistent_state = {}
+persistent_agent_state = {}
 
 def ooba_call(prompt):
     stops = [AgentOobaVars["human-prefix"], '</s>']
-    generator = generate_reply(prompt, persistent_state, stopping_strings=stops)
+    generator = generate_reply(prompt, persistent_agent_state, stopping_strings=stops)
     answer = ''
     for a in generator:
         if isinstance(a, str):
@@ -147,40 +148,6 @@ def update_tool_state(tool_name, statetype, value):
 
 def update_tool_description(tool_name, value):
     AgentOobaVars["tools"][tool_name]['desc'] = value
-    
-def gather_agentooba_parameters(
-    recursion_level,
-    distance_cutoff,
-    max_tasks,
-    expanded_context,
-    h_prefix,
-    a_prefix,
-    primary_directive,
-    assess_ability,
-    do_objective,
-    split_objective,
-    assess_tool,
-    use_tool,
-    gen_thoughts,
-    summarize
-    ):
-    AgentOobaVars["recursion-max"] = recursion_level
-    AgentOobaVars["chroma-cutoff"] = distance_cutoff
-    AgentOobaVars["max-tasks"] = max_tasks
-    AgentOobaVars["expanded-context"] = expanded_context
-    AgentOobaVars["directives"]["Primary directive"] = primary_directive
-    AgentOobaVars["directives"]["Assess ability directive"] = assess_ability
-    AgentOobaVars["directives"]["Do objective directive"] = do_objective
-    AgentOobaVars["directives"]["Split objective directive"] = split_objective
-    AgentOobaVars["directives"]["Assess tool directive"] = assess_tool
-    AgentOobaVars["directives"]["Use tool directive"] = use_tool
-    AgentOobaVars["directives"]["Generate thoughts directive"] = gen_thoughts
-    AgentOobaVars["directives"]["Summarize directive"] = summarize
-    AgentOobaVars["human-prefix"] = h_prefix
-    AgentOobaVars["assistant-prefix"] = a_prefix
-    global persistent_state
-    persistent_state = gather_interface_values(list_interface_input_elements())
-    persistent_state['custom_stopping_strings'] = ''
 
 def mainloop(ostr):
     AgentOobaVars["processed-task-storage"] = ChromaTaskStorage()
@@ -199,6 +166,42 @@ def mainloop(ostr):
     yield f'<div class="oobaAgentOutput"><br>{AgentOobaVars["main-objective"].to_string(False)}<br>Done!</div>'
 
 def ui():
+    state = gr.State({})
+
+    def gather_agentooba_parameters(
+        recursion_level,
+        distance_cutoff,
+        max_tasks,
+        expanded_context,
+        h_prefix,
+        a_prefix,
+        primary_directive,
+        assess_ability,
+        do_objective,
+        split_objective,
+        assess_tool,
+        use_tool,
+        gen_thoughts,
+        summarize
+        ):
+        AgentOobaVars["recursion-max"] = recursion_level
+        AgentOobaVars["chroma-cutoff"] = distance_cutoff
+        AgentOobaVars["max-tasks"] = max_tasks
+        AgentOobaVars["expanded-context"] = expanded_context
+        AgentOobaVars["directives"]["Primary directive"] = primary_directive
+        AgentOobaVars["directives"]["Assess ability directive"] = assess_ability
+        AgentOobaVars["directives"]["Do objective directive"] = do_objective
+        AgentOobaVars["directives"]["Split objective directive"] = split_objective
+        AgentOobaVars["directives"]["Assess tool directive"] = assess_tool
+        AgentOobaVars["directives"]["Use tool directive"] = use_tool
+        AgentOobaVars["directives"]["Generate thoughts directive"] = gen_thoughts
+        AgentOobaVars["directives"]["Summarize directive"] = summarize
+        AgentOobaVars["human-prefix"] = h_prefix
+        AgentOobaVars["assistant-prefix"] = a_prefix
+        global persistent_agent_state
+        persistent_agent_state = state.value.copy()
+        persistent_agent_state['custom_stopping_strings'] = ''
+
     with gr.Column(elem_classes="oobaAgentBase"):
         with gr.Accordion(label="Output"):
             output = gr.HTML(label="Output", value="")
@@ -268,6 +271,10 @@ def ui():
                 imported_prompts = gr.File(interactive = True, type="binary")
 
     submit_event_1 = submit_button.click(
+        gather_interface_values,
+        inputs=gradio(shared.input_elements),
+        outputs=state
+    ).then(
         gather_agentooba_parameters, 
         inputs=[
             recursion_level_slider, 
@@ -282,6 +289,10 @@ def ui():
     )
 
     submit_event_2 = user_input.submit(
+        gather_interace_values,
+        inputs=gradio(shared.input_elements),
+        outputs=state
+    ).then(
         gather_agentooba_parameters, 
         inputs=[
             recursion_level_slider, 
