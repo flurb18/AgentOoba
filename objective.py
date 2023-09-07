@@ -13,10 +13,11 @@ text_splitter = RecursiveCharacterTextSplitter(
 )
 
 class Objective:
-    def __init__(self, objective, task_idx, recursion_level, parent=None):
+    def __init__(self, objective, task_idx, recursion_level, state, parent=None):
         self.objective = objective
         self.parent = parent
         self.recursion_level = recursion_level
+        self.state = state
         self.tasks = []
         self.done = (recursion_level == AgentOobaVars["recursion-max"])
         self.parent_task_idx = task_idx
@@ -71,12 +72,12 @@ class Objective:
     def assess_model_ability(self):
         directive = AgentOobaVars["directives"]["Assess ability directive"]
         prompt = self.make_prompt(directive, include_objectives=True, context_abilities=True, context_resources=True)
-        response = ooba_call(prompt).strip()
+        response = ooba_call(prompt, self.state).strip()
         return 'yes' in response.lower()
 
     def do_objective(self):
         directive = AgentOobaVars["directives"]["Do objective directive"]
-        response = ooba_call(self.make_prompt(directive, include_objectives=True, context_abilities=True, context_resources=True)).strip()
+        response = ooba_call(self.make_prompt(directive, include_objectives=True, context_abilities=True, context_resources=True), self.state).strip()
         return response
 
     def generate_context(self):
@@ -88,7 +89,7 @@ class Objective:
         """
         self.context["abilities-available"]=init_abilities.strip()
         directive = AgentOobaVars["directives"]["Generate thoughts directive"]
-        response = ooba_call(self.make_prompt(directive, include_objectives=True)).strip()
+        response = ooba_call(self.make_prompt(directive, include_objectives=True), self.state).strip()
         context_regex = re.compile('Resources: (.+)\nAbilities: (.+)',re.DOTALL)
         match = context_regex.search(response)
         if not match:
@@ -100,7 +101,7 @@ class Objective:
     def split_objective(self):
         directive = AgentOobaVars["directives"]["Split objective directive"].replace("_MAX_TASKS_", str(AgentOobaVars["max-tasks"]))
         prompt = self.make_prompt(directive, include_objectives=True, context_objectives=True)
-        response = ooba_call(prompt).strip()
+        response = ooba_call(prompt, self.state).strip()
         task_list_regex = re.compile('((^|\n)[\d]+\.)(.*?)(?=(\n[\d]+\..*)|($))', re.DOTALL)
         match = task_list_regex.search(response)
         task_list = []
@@ -121,10 +122,10 @@ class Objective:
                 old = self.context["resources-available"]
                 self.add_resource_no_summary(f"You have the following tool available to you:\n{tool_str}")
                 prompt = self.make_prompt(directive, include_objectives=True, context_resources=True)
-                if 'yes' in ooba_call(prompt).strip().lower():
+                if 'yes' in ooba_call(prompt, self.state).strip().lower():
                     directive = AgentOobaVars["directives"]["Use tool directive"].replace("_TOOL_NAME_", tool_name)
                     prompt = self.make_prompt(directive, include_objectives=True, context_resources=True)
-                    response = ooba_call(prompt).strip()
+                    response = ooba_call(prompt, self.state).strip()
                     negative_responses = ["i cannot", "am unable"]
                     if not any([neg in response.lower() for neg in negative_responses]):
                         self.context["resources-available"]=old
@@ -159,14 +160,14 @@ class Objective:
             for doc in docs:
                 directive = AgentOobaVars["directives"]["Summarize directive"].replace("_TEXT_", doc)
                 prompt = self.make_prompt(directive, include_objectives=False)
-                summaries.append(ooba_call(prompt).strip())
+                summaries.append(ooba_call(prompt, self.state).strip())
             resource = "\n\n".join(summaries)
         final_length = get_encoded_length(resource)
         if final_length < AgentOobaVars["max-context"]:
             if final_length > (AgentOobaVars["max-context"]/4):
                 directive = AgentOobaVars["directives"]["Summarize directive"].replace("_TEXT_", resource)
                 prompt = self.make_prompt(directive, include_objectives=False)
-                resource = ooba_call(prompt).strip()
+                resource = ooba_call(prompt, self.state).strip()
             self.add_resource_no_summary(resource)
 
     def add_resource_no_summary(self, resource):

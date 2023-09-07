@@ -73,12 +73,9 @@ params = {
     "is_tab" : True
 }
 
-persistent_agent_state = {}
-
-def ooba_call(prompt):
+def ooba_call(prompt, state):
     stops = [AgentOobaVars["human-prefix"], '</s>']
-    global persistent_agent_state
-    generator = generate_reply(prompt, persistent_agent_state, stopping_strings=stops)
+    generator = generate_reply(prompt, state, stopping_strings=stops)
     answer = ''
     for a in generator:
         if isinstance(a, str):
@@ -150,11 +147,11 @@ def update_tool_state(tool_name, statetype, value):
 def update_tool_description(tool_name, value):
     AgentOobaVars["tools"][tool_name]['desc'] = value
 
-def mainloop(ostr):
+def mainloop(ostr, state):
     AgentOobaVars["processed-task-storage"] = ChromaTaskStorage()
     AgentOobaVars["processed-task-storage"].add_tasks([ostr],["MAIN OBJECTIVE"])
     yield f"<br>Thinking...<br>"
-    AgentOobaVars["main-objective"] = Objective(ostr, -1, 1)
+    AgentOobaVars["main-objective"] = Objective(ostr, -1, 1, state)
     while (not AgentOobaVars["main-objective"].done):
         yield f'<div class="oobaAgentOutput"><br>{AgentOobaVars["main-objective"].to_string(True)}<br>Thinking...</div>'
         AgentOobaVars["main-objective"].process_current_task()
@@ -166,10 +163,7 @@ def mainloop(ostr):
             time.sleep(0.1)
     yield f'<div class="oobaAgentOutput"><br>{AgentOobaVars["main-objective"].to_string(False)}<br>Done!</div>'
 
-def ui():
-    state = gr.State({})
-
-    def gather_agentooba_parameters(
+def gather_agentooba_parameters(
         recursion_level,
         distance_cutoff,
         max_tasks,
@@ -199,10 +193,9 @@ def ui():
         AgentOobaVars["directives"]["Summarize directive"] = summarize
         AgentOobaVars["human-prefix"] = h_prefix
         AgentOobaVars["assistant-prefix"] = a_prefix
-        global persistent_agent_state
-        persistent_agent_state = state.value.copy()
-        persistent_agent_state['custom_stopping_strings'] = ''
 
+def ui():
+    state = gr.State({})
     with gr.Column(elem_classes="oobaAgentBase"):
         with gr.Accordion(label="Output"):
             output = gr.HTML(label="Output", value="")
@@ -286,7 +279,7 @@ def ui():
             assistant_prefix_input
             ]+directive_inputs, outputs=None
     ).then(
-        mainloop, inputs=[user_input], outputs=output
+        mainloop, inputs=[user_input, state], outputs=output
     )
 
     submit_event_2 = user_input.submit(
@@ -304,7 +297,7 @@ def ui():
             assistant_prefix_input
             ]+directive_inputs, outputs=None
     ).then(
-        mainloop, inputs=[user_input], outputs=output
+        mainloop, inputs=[user_input, state], outputs=output
     )
     
     def cancel_agent():
