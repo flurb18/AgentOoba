@@ -60,13 +60,15 @@ params = {
     "is_tab" : True
 }
 
+persistent_state = {}
+
 import modules
 from modules import chat, shared
 from modules.text_generation import generate_reply
 
 def ooba_call(prompt):
     stops = [AgentOobaVars["human-prefix"],"</s>"]
-    generator = generate_reply(prompt, shared.gradio['interface_state'], stopping_strings=stops)
+    generator = generate_reply(prompt, persistent_state, stopping_strings=stops)
     answer = ''
     for a in generator:
         if isinstance(a, str):
@@ -193,6 +195,10 @@ def mainloop(ostr):
             time.sleep(0.1)
     yield f'<div class="oobaAgentOutput"><br>{AgentOobaVars["main-objective"].to_string(False)}<br>Done!</div>'
 
+def save_interface_values():
+    for key in shared.input_elements:
+        persistent_state[key] = shared.gradio[key]
+
 def ui():
     with gr.Column(elem_classes="oobaAgentBase"):
         with gr.Accordion(label="Output"):
@@ -263,9 +269,9 @@ def ui():
                 imported_prompts = gr.File(interactive = True, type="binary")
 
     submit_event_1 = submit_button.click(
-        modules.ui.gather_interface_values,
-        inputs = [shared.gradio[k] for k in shared.input_elements],
-        outputs = shared.gradio['interface_state']
+        save_interface_values,
+        inputs = None,
+        outputs = None
     ).then(
         gather_agentooba_parameters, 
         inputs=[
@@ -281,9 +287,9 @@ def ui():
     )
 
     submit_event_2 = user_input.submit(
-        modules.ui.gather_interface_values,
-        inputs = [shared.gradio[k] for k in shared.input_elements],
-        outputs = shared.gradio['interface_state']
+        save_interface_values,
+        inputs = None,
+        outputs = None
     ).then(
         gather_agentooba_parameters, 
         inputs=[
