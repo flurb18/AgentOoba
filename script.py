@@ -77,6 +77,7 @@ persistent_agent_state = {}
 
 def ooba_call(prompt):
     stops = [AgentOobaVars["human-prefix"], '</s>']
+    global persistent_agent_state
     generator = generate_reply(prompt, persistent_agent_state, stopping_strings=stops)
     answer = ''
     for a in generator:
@@ -272,7 +273,7 @@ def ui():
 
     submit_event_1 = submit_button.click(
         gather_interface_values,
-        inputs=gradio(shared.input_elements),
+        inputs=gradio(list_interface_input_elements()),
         outputs=state
     ).then(
         gather_agentooba_parameters, 
@@ -290,7 +291,7 @@ def ui():
 
     submit_event_2 = user_input.submit(
         gather_interface_values,
-        inputs=gradio(shared.input_elements),
+        inputs=gradio(list_interface_input_elements()),
         outputs=state
     ).then(
         gather_agentooba_parameters, 
