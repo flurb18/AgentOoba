@@ -289,7 +289,7 @@ def ui():
     )
 
     submit_event_2 = user_input.submit(
-        gather_interace_values,
+        gather_interface_values,
         inputs=gradio(shared.input_elements),
         outputs=state
     ).then(
