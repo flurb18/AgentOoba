@@ -180,7 +180,7 @@ def gather_agentooba_parameters(
     AgentOobaVars["human-prefix"] = h_prefix
     AgentOobaVars["assistant-prefix"] = a_prefix
     global persistent_state
-    persistent_state = gather_interface_values(gradio(shared.input_elements))
+    persistent_state = gather_interface_values(shared.input_elements)
     persistent_state['custom_stopping_strings'] = ''
 
 def mainloop(ostr):
