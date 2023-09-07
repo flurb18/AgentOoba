@@ -15,8 +15,7 @@ from langchain.tools import Tool
 
 from modules import chat, shared
 from modules.text_generation import generate_reply
-from modules.utils import gradio
-from modules.ui import gather_interface_values
+from modules.ui import gather_interface_values, list_interface_input_elements
 
 load_dotenv()
 
@@ -180,7 +179,7 @@ def gather_agentooba_parameters(
     AgentOobaVars["human-prefix"] = h_prefix
     AgentOobaVars["assistant-prefix"] = a_prefix
     global persistent_state
-    persistent_state = gather_interface_values(shared.input_elements)
+    persistent_state = gather_interface_values(list_interface_input_elements())
     persistent_state['custom_stopping_strings'] = ''
 
 def mainloop(ostr):
